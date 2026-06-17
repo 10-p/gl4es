@@ -205,6 +205,12 @@ void APIENTRY_GL4ES gl4es_glBindTexture(GLenum target, GLuint texture) {
             case GL_TEXTURE_CUBE_MAP_NEGATIVE_Y:
             case GL_TEXTURE_CUBE_MAP_POSITIVE_Z:
             case GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
+                // Cube maps are bound immediately (not deferred), so the GLES hardware
+                // active unit must first be synced to the unit the app selected
+                // (glstate->texture.active). glActiveTexture is lazy, so without this the
+                // cube binds to the stale hardware-active unit; a multitexture samplerCube
+                // (correctly assigned its unit) then reads an unbound unit -> black.
+                realize_active();
                 gles_glBindTexture(target, tex?tex->glname:0);
                 break;
             case GL_TEXTURE_1D:
