@@ -997,6 +997,8 @@ void APIENTRY_GL4ES gl4es_glRenderbufferStorage(GLenum target, GLenum internalfo
     }
     else if (internalformat == GL_DEPTH_COMPONENT || internalformat == GL_DEPTH_COMPONENT32)    // Not much is supported on GLES...
         internalformat = GL_DEPTH_COMPONENT16;
+    else if (internalformat == GL_DEPTH_COMPONENT24 && !hardext.depth24)    // 24bit depth renderbuffer needs GLES3/WebGL2 (GL_OES_depth24); downgrade on GLES2/WebGL1
+        internalformat = GL_DEPTH_COMPONENT16;
     else if (internalformat == GL_RGB8 && hardext.rgba8==0)
         internalformat = GL_RGB565_OES;
     else if (internalformat == GL_RGBA8 && hardext.rgba8==0)
