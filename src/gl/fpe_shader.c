@@ -162,6 +162,16 @@ static int fpe_reflectcube(fpe_state_t* state, int i) {
         && state->texgen[i].texgen_s && state->texgen[i].texgen_s_mode==FPE_TG_REFLECMAP;
 }
 
+// Same defect, but for a 2D camera/world environment map driven by GL_REFLECTION_MAP
+// (sampled via texture2DProj). fpe_reflectcube() above is FPE_TEX_CUBE-only, so a 2D
+// reflection-map stage falls back to the per-vertex texgen path: the interpolated,
+// perspective-divided reflected vector collapses to a solid color with distance/grazing
+// angle on small/dense polys. Compute its reflection per-fragment too.
+static int fpe_reflect2d(fpe_state_t* state, int i) {
+    return state && state->texture[i].textype==FPE_TEX_2D
+        && state->texgen[i].texgen_s && state->texgen[i].texgen_s_mode==FPE_TG_REFLECMAP;
+}
+
 const char* const* fpe_VertexShader(shaderconv_need_t* need, fpe_state_t *state) {
     // vertex is first called, so 1st time init is only here
     if(!shad_cap) shad_cap = 1024;
@@ -369,7 +379,7 @@ const char* const* fpe_VertexShader(shaderconv_need_t* need, fpe_state_t *state)
                 ShadAppend(buff);
                 headers++;
             }
-            if(fpe_reflectcube(state, i)) {
+            if(fpe_reflectcube(state, i) || fpe_reflect2d(state, i)) {
                 sprintf(buff, "varying highp vec3 _gl4es_ReflEye_%d;\nvarying highp vec3 _gl4es_ReflNrm_%d;\n", i, i);
                 ShadAppend(buff);
                 headers+=2;
@@ -715,7 +725,7 @@ const char* const* fpe_VertexShader(shaderconv_need_t* need, fpe_state_t *state)
                 sprintf(buff, "_gl4es_TexCoord_%d = %s.%s;\n", i, text_tmp, texxyzsize[t-1]);
             }
             ShadAppend(buff);
-            if(fpe_reflectcube(state, i)) {
+            if(fpe_reflectcube(state, i) || fpe_reflect2d(state, i)) {
                 // pass eye-space position + normal so the reflection is computed per-fragment
                 sprintf(buff, "_gl4es_ReflEye_%d = vertex.xyz;\n_gl4es_ReflNrm_%d = normal;\n", i, i);
                 ShadAppend(buff);
@@ -937,7 +947,7 @@ const char* const* fpe_FragmentShader(shaderconv_need_t* need, fpe_state_t *stat
             sprintf(buff, "uniform %s _gl4es_TexSampler_%d;\n", texsampler[t-1], i);
             ShadAppend(buff);
             headers++;
-            if(fpe_reflectcube(state, i)) {
+            if(fpe_reflectcube(state, i) || fpe_reflect2d(state, i)) {
                 sprintf(buff, "varying highp vec3 _gl4es_ReflEye_%d;\nvarying highp vec3 _gl4es_ReflNrm_%d;\nuniform highp mat4 _gl4es_TextureMatrix_%d;\n", i, i, i);
                 ShadAppend(buff);
                 headers+=3;
@@ -1000,6 +1010,10 @@ const char* const* fpe_FragmentShader(shaderconv_need_t* need, fpe_state_t *stat
                 } else if(fpe_reflectcube(state, i)) {
                     // per-fragment reflection: reflect the interpolated eye pos/normal, then to cube space
                     sprintf(buff, "vec3 _gl4es_refl%d = reflect(normalize(_gl4es_ReflEye_%d), normalize(_gl4es_ReflNrm_%d));\n    vec4 texColor%d = textureCube(_gl4es_TexSampler_%d, (_gl4es_TextureMatrix_%d * vec4(_gl4es_refl%d, 1.0)).stp);\n", i, i, i, i, i, i, i);
+                } else if(fpe_reflect2d(state, i)) {
+                    // per-fragment reflection for a 2D camera/world env map: reflect per-fragment,
+                    // apply the texture matrix, then sample projectively (texture2DProj divides xy by w)
+                    sprintf(buff, "vec3 _gl4es_refl%d = reflect(normalize(_gl4es_ReflEye_%d), normalize(_gl4es_ReflNrm_%d));\n    vec4 texColor%d = texture2DProj(_gl4es_TexSampler_%d, _gl4es_TextureMatrix_%d * vec4(_gl4es_refl%d, 1.0));\n", i, i, i, i, i, i, i);
                 } else
                     sprintf(buff, "vec4 texColor%d = %s(_gl4es_TexSampler_%d, _gl4es_TexCoord_%d);\n", i, texname[t-1], i, i);
                 ShadAppend(buff);
