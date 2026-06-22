@@ -1011,9 +1011,11 @@ const char* const* fpe_FragmentShader(shaderconv_need_t* need, fpe_state_t *stat
                     // per-fragment reflection: reflect the interpolated eye pos/normal, then to cube space
                     sprintf(buff, "vec3 _gl4es_refl%d = reflect(normalize(_gl4es_ReflEye_%d), normalize(_gl4es_ReflNrm_%d));\n    vec4 texColor%d = textureCube(_gl4es_TexSampler_%d, (_gl4es_TextureMatrix_%d * vec4(_gl4es_refl%d, 1.0)).stp);\n", i, i, i, i, i, i, i);
                 } else if(fpe_reflect2d(state, i)) {
-                    // per-fragment reflection for a 2D camera/world env map: reflect per-fragment,
-                    // apply the texture matrix, then sample projectively (texture2DProj divides xy by w)
-                    sprintf(buff, "vec3 _gl4es_refl%d = reflect(normalize(_gl4es_ReflEye_%d), normalize(_gl4es_ReflNrm_%d));\n    vec4 texColor%d = texture2DProj(_gl4es_TexSampler_%d, _gl4es_TextureMatrix_%d * vec4(_gl4es_refl%d, 1.0));\n", i, i, i, i, i, i, i);
+                    // per-fragment reflection for a 2D camera/world env map. A reflection is a
+                    // direction, so sample the env coords NON-projectively (.xy, no texture2DProj
+                    // perspective divide). Correct for any texture-matrix w the driver produces, so
+                    // the collapse-prone w can never break it and no driver-side w-row fixup is needed.
+                    sprintf(buff, "vec3 _gl4es_refl%d = reflect(normalize(_gl4es_ReflEye_%d), normalize(_gl4es_ReflNrm_%d));\n    vec4 texColor%d = texture2D(_gl4es_TexSampler_%d, (_gl4es_TextureMatrix_%d * vec4(_gl4es_refl%d, 1.0)).xy);\n", i, i, i, i, i, i, i);
                 } else
                     sprintf(buff, "vec4 texColor%d = %s(_gl4es_TexSampler_%d, _gl4es_TexCoord_%d);\n", i, texname[t-1], i, i);
                 ShadAppend(buff);
