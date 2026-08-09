@@ -100,7 +100,18 @@
 #if defined(_WIN32) && !defined(_WINGDI_) && !defined(_WIN32_WCE) \
      && !defined(_GNU_H_WINDOWS32_DEFINES) && !defined(OPENSTEP) \
      && !defined(__CYGWIN__) || defined(__MINGW32__)
-#include <GL/mesa_wgl.h>
+/* ufront 2.34: this header is a Mesa-ism. gl4es does not ship it and a MinGW-w64 sysroot does not have
+ * it either, so on any Windows build where something outside gl4es includes this gl.h (e.g. a render
+ * device that gets its context from SDL and only wants the GL entry points) the include is a hard
+ * "No such file or directory". It only ever declared the wgl* context calls, which such a consumer does
+ * not use. Include it when it exists; carry on when it does not. */
+#if defined(__has_include)
+#  if __has_include(<GL/mesa_wgl.h>)
+#    include <GL/mesa_wgl.h>
+#  endif
+#else
+#  include <GL/mesa_wgl.h>
+#endif
 #endif
 
 #if defined(macintosh) && PRAGMA_IMPORT_SUPPORTED
