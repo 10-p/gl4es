@@ -389,6 +389,14 @@ void GetHardwareExtensions(int notest)
             }
         }
         S("GL_EXT_frag_depth ", fragdepth, 1);
+        if(hardext.esversion>2) {
+            // shaders are emitted as GLSL ES 3.00 (shaderconv.c), where these are core
+            hardext.fragdepth = 1;
+            hardext.derivatives = 1;
+            hardext.shaderlod = 1;
+            hardext.cubelod = 1;
+            SHUT_LOGD("GLES 3.0: shaders emitted as GLSL ES 3.00; gl_FragDepth, derivatives and explicit LOD are core, and so used\n");
+        }
         gles_glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &hardext.maxvattrib);
         SHUT_LOGD("Max vertex attrib: %d\n", hardext.maxvattrib);
         S("GL_OES_standard_derivatives ", derivatives, 1);

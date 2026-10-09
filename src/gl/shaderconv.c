@@ -437,6 +437,56 @@ static const char* gl4es_VertexAttrib = "_gl4es_VertexAttrib_";
 char gl_VA[MAX_VATTRIB][32] = {0};
 char gl4es_VA[MAX_VATTRIB][32] = {0};
 
+// GLES 3.0 / WebGL 2: the converted GLSL ES 1.00 text is rewritten as GLSL ES 3.00. On WebGL 2 a
+// GLSL ES 1.00 shader gets none of EXT_frag_depth, OES_standard_derivatives or EXT_shader_texture_lod
+// (they exist for WebGL 1 only); in 3.00 gl_FragDepth, dFdx/dFdy/fwidth and explicit LOD are core.
+// The rewrite is textual and token-aware: in/out for attribute/varying, an output variable for
+// gl_FragColor, the texture lookup functions under their 3.00 names, and the extension lines of
+// what is now core removed. A fragment shader writing gl_FragData[n] with n>0 stays 1.00.
+static const char* gl4es_FragColor300 = "out highp vec4 gl4es_FragColor;\n";
+static char* ConvertToESSL300(char* Tmp, int* tmpsize, int isVertex)
+{
+  if(!isVertex && gl4es_find_string(Tmp, "gl_FragData")) {
+    // only gl_FragData[0] has a meaning without layout qualifiers
+    Tmp = gl4es_inplace_replace_simple(Tmp, tmpsize, "gl_FragData[0]", "gl_FragColor");
+    if(gl4es_find_string(Tmp, "gl_FragData"))
+      return Tmp;
+  }
+  Tmp = gl4es_inplace_replace_simple(Tmp, tmpsize, "#version 100\n", "#version 300 es\n");
+  static const char* core_extensions[] = {
+    "#extension GL_EXT_frag_depth : enable\n",
+    "#extension GL_OES_standard_derivatives : enable\n",
+    "#extension GL_EXT_shader_texture_lod : enable\n",
+    "#extension GL_EXT_draw_buffers : enable\n",
+  };
+  for(int i=0; i<sizeof(core_extensions)/sizeof(core_extensions[0]); ++i)
+    Tmp = gl4es_inplace_replace_simple(Tmp, tmpsize, core_extensions[i], "");
+  if(isVertex) {
+    Tmp = gl4es_inplace_replace(Tmp, tmpsize, "attribute", "in");
+    Tmp = gl4es_inplace_replace(Tmp, tmpsize, "varying", "out");
+  } else {
+    Tmp = gl4es_inplace_replace(Tmp, tmpsize, "varying", "in");
+    if(gl4es_find_string(Tmp, "gl_FragColor")) {
+      Tmp = gl4es_inplace_replace(Tmp, tmpsize, "gl_FragColor", "gl4es_FragColor");
+      // after the header (version, extensions, precision), which ends with GL4ES' own #define
+      char* p = strstr(Tmp, "#define GL4ES\n");
+      if(p) p += strlen("#define GL4ES\n"); else p = gl4es_getline(Tmp, 1);
+      Tmp = gl4es_inplace_insert(p, gl4es_FragColor300, Tmp, tmpsize);
+    }
+    Tmp = gl4es_inplace_replace(Tmp, tmpsize, "gl_FragDepthEXT", "gl_FragDepth");
+  }
+  static const char* lookups[][2] = {
+    {"texture2DProjLodEXT", "textureProjLod"}, {"texture2DProjLod", "textureProjLod"},
+    {"texture2DLodEXT", "textureLod"}, {"texture2DLod", "textureLod"},
+    {"textureCubeLodEXT", "textureLod"}, {"textureCubeLod", "textureLod"},
+    {"texture2DProjGradEXT", "textureProjGrad"}, {"texture2DGradEXT", "textureGrad"}, {"textureCubeGradEXT", "textureGrad"},
+    {"texture2DProj", "textureProj"}, {"texture2D", "texture"}, {"textureCube", "texture"},
+  };
+  for(int i=0; i<sizeof(lookups)/sizeof(lookups[0]); ++i)
+    Tmp = gl4es_inplace_replace(Tmp, tmpsize, lookups[i][0], lookups[i][1]);
+  return Tmp;
+}
+
 char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
 {
   #define ShadAppend(S) Tmp = gl4es_append(Tmp, &tmpsize, S)
@@ -1259,6 +1309,9 @@ char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
     Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "mat3x3", "mat3");
   }
   
+  if(hardext.esversion>2)
+    Tmp = ConvertToESSL300(Tmp, &tmpsize, isVertex);
+
   // finish
   if((globals4es.dbgshaderconv&maskafter)==maskafter) {
     printf("New Shader source:\n%s\n", Tmp);
