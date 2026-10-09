@@ -863,7 +863,8 @@ void APIENTRY_GL4ES gl4es_glFramebufferRenderbuffer(GLenum target, GLenum attach
         return;
     }
 
-    if (attachment >= GL_COLOR_ATTACHMENT0 && (attachment < (GL_COLOR_ATTACHMENT0+hardext.maxcolorattach)) && globals4es.fboforcetex) {
+    // (a multisampled renderbuffer stays one: a texture cannot stand in for it)
+    if (attachment >= GL_COLOR_ATTACHMENT0 && (attachment < (GL_COLOR_ATTACHMENT0+hardext.maxcolorattach)) && globals4es.fboforcetex && rend->samples<=1) {
         if(rend->renderbuffer) {
             // drop the renderbuffer attachement and create a texture instead...
             int oldactive = glstate->texture.active;
@@ -1062,6 +1063,7 @@ void APIENTRY_GL4ES gl4es_glRenderbufferStorage(GLenum target, GLenum internalfo
     rend->height = height;
     rend->format = format;
     rend->actual = internalformat;
+    rend->samples = renderbuffer_samples;
 
     if(renderbuffer_samples>1) {
         LOAD_GLES2(glRenderbufferStorageMultisample);

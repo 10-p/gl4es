@@ -269,6 +269,7 @@ typedef struct {
     GLenum      actual;             // actual formal
     int         width;
     int         height;
+    int         samples;            // >1: multisampled storage (GLES 3)
 } glrenderbuffer_t;
 
 KHASH_MAP_DECLARE_INT(renderbufferlist_t, glrenderbuffer_t *);
