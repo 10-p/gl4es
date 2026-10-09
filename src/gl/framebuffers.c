@@ -1093,7 +1093,8 @@ void APIENTRY_GL4ES gl4es_glBindRenderbuffer(GLenum target, GLuint renderbuffer)
         return;
     }
      glrenderbuffer_t * rend = find_renderbuffer(renderbuffer);
-    if(!rend || !rend->renderbuffer) {
+    // (renderbuffer 0 unbinds: legal, and the default renderbuffer record has no name)
+    if(!rend || (renderbuffer && !rend->renderbuffer)) {
         errorShim(GL_INVALID_OPERATION);
         return;
     }
