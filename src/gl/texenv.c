@@ -45,6 +45,9 @@ void APIENTRY_GL4ES gl4es_glTexEnvf(GLenum target, GLenum pname, GLfloat param) 
                     return;
                 FLUSH_BEGINEND;
                 glstate->texenv[tmu].filter.lod_bias = param;
+                // the fixed-function shader adds it to its lookup (fpe_shader.c)
+                if (glstate->fpe_state)
+                    glstate->fpe_state->texture[tmu].texlodbias = (param!=0.0f)?1:0;
             } else {
                 errorShim(GL_INVALID_ENUM);
                 return;

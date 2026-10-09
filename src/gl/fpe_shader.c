@@ -947,6 +947,11 @@ const char* const* fpe_FragmentShader(shaderconv_need_t* need, fpe_state_t *stat
             sprintf(buff, "uniform %s _gl4es_TexSampler_%d;\n", texsampler[t-1], i);
             ShadAppend(buff);
             headers++;
+            if(state->texture[i].texlodbias && t!=FPE_TEX_STRM) {
+                sprintf(buff, "uniform highp float _gl4es_TexLodBias_%d;\n", i);
+                ShadAppend(buff);
+                headers++;
+            }
             if(fpe_reflectcube(state, i) || fpe_reflect2d(state, i)) {
                 sprintf(buff, "varying highp vec3 _gl4es_ReflEye_%d;\nvarying highp vec3 _gl4es_ReflNrm_%d;\nuniform highp mat4 _gl4es_TextureMatrix_%d;\n", i, i, i);
                 ShadAppend(buff);
@@ -1002,6 +1007,10 @@ const char* const* fpe_FragmentShader(shaderconv_need_t* need, fpe_state_t *stat
         for (int i=0; i<hardext.maxtex; i++) {
             int t = state->texture[i].textype;
             if(t) {
+                // GL_TEXTURE_LOD_BIAS of the unit: the bias argument of the lookup (fragment shaders only)
+                char bias[40] = "";
+                if(state->texture[i].texlodbias && t!=FPE_TEX_STRM)
+                    sprintf(bias, ", _gl4es_TexLodBias_%d", i);
                 if(point && pointsprite && pointsprite_coord) {
                     if(pointsprite_upper)
                         sprintf(buff, "vec4 texColor%d = %s(_gl4es_TexSampler_%d, vec2(gl_PointCoord.x, 1.-gl_PointCoord.y));\n", i, texnoproj[t-1], i);
@@ -1009,15 +1018,15 @@ const char* const* fpe_FragmentShader(shaderconv_need_t* need, fpe_state_t *stat
                         sprintf(buff, "vec4 texColor%d = %s(_gl4es_TexSampler_%d, gl_PointCoord);\n", i, texnoproj[t-1], i);
                 } else if(fpe_reflectcube(state, i)) {
                     // per-fragment reflection: reflect the interpolated eye pos/normal, then to cube space
-                    sprintf(buff, "vec3 _gl4es_refl%d = reflect(normalize(_gl4es_ReflEye_%d), normalize(_gl4es_ReflNrm_%d));\n    vec4 texColor%d = textureCube(_gl4es_TexSampler_%d, (_gl4es_TextureMatrix_%d * vec4(_gl4es_refl%d, 1.0)).stp);\n", i, i, i, i, i, i, i);
+                    sprintf(buff, "vec3 _gl4es_refl%d = reflect(normalize(_gl4es_ReflEye_%d), normalize(_gl4es_ReflNrm_%d));\n    vec4 texColor%d = textureCube(_gl4es_TexSampler_%d, (_gl4es_TextureMatrix_%d * vec4(_gl4es_refl%d, 1.0)).stp%s);\n", i, i, i, i, i, i, i, bias);
                 } else if(fpe_reflect2d(state, i)) {
                     // per-fragment reflection for a 2D camera/world env map. A reflection is a
                     // direction, so sample the env coords NON-projectively (.xy, no texture2DProj
                     // perspective divide). Correct for any texture-matrix w the driver produces, so
                     // the collapse-prone w can never break it and no driver-side w-row fixup is needed.
-                    sprintf(buff, "vec3 _gl4es_refl%d = reflect(normalize(_gl4es_ReflEye_%d), normalize(_gl4es_ReflNrm_%d));\n    vec4 texColor%d = texture2D(_gl4es_TexSampler_%d, (_gl4es_TextureMatrix_%d * vec4(_gl4es_refl%d, 1.0)).xy);\n", i, i, i, i, i, i, i);
+                    sprintf(buff, "vec3 _gl4es_refl%d = reflect(normalize(_gl4es_ReflEye_%d), normalize(_gl4es_ReflNrm_%d));\n    vec4 texColor%d = texture2D(_gl4es_TexSampler_%d, (_gl4es_TextureMatrix_%d * vec4(_gl4es_refl%d, 1.0)).xy%s);\n", i, i, i, i, i, i, i, bias);
                 } else
-                    sprintf(buff, "vec4 texColor%d = %s(_gl4es_TexSampler_%d, _gl4es_TexCoord_%d);\n", i, texname[t-1], i, i);
+                    sprintf(buff, "vec4 texColor%d = %s(_gl4es_TexSampler_%d, _gl4es_TexCoord_%d%s);\n", i, texname[t-1], i, i, bias);
                 ShadAppend(buff);
             }
         }

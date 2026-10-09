@@ -251,6 +251,7 @@ typedef struct {
     GLint                           builtin_texsampler[MAX_TEX];
     int                             has_builtin_texsampler;
     GLint                           builtin_texenvrgbscale[MAX_TEX];
+    GLint                           builtin_texlodbias[MAX_TEX];
     GLint                           builtin_texenvalphascale[MAX_TEX];
     GLint                           builtin_texadjust[MAX_TEX];
     int                             has_builtin_texadjust;

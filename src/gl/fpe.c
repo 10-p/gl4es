@@ -85,6 +85,7 @@ void APIENTRY_GL4ES fpe_ReleventState_DefaultVertex(fpe_state_t *dest, fpe_state
             dest->texture[i].texmat = 0;
             dest->texture[i].texformat = 0;
             dest->texture[i].texadjust = 0;
+            dest->texture[i].texlodbias = 0;
             dest->texgen[i].texgen_s = 0;
             dest->texgen[i].texgen_s_mode = 0;
             dest->texgen[i].texgen_t = 0;
@@ -190,6 +191,7 @@ void APIENTRY_GL4ES fpe_ReleventState(fpe_state_t *dest, fpe_state_t *src, int f
             dest->texture[i].texmat = 0;
             dest->texture[i].texformat = 0;
             dest->texture[i].texadjust = 0;
+            dest->texture[i].texlodbias = 0;
             dest->texgen[i].texgen_s = 0;
             dest->texgen[i].texgen_s_mode = 0;
             dest->texgen[i].texgen_t = 0;
@@ -255,6 +257,7 @@ void APIENTRY_GL4ES fpe_ReleventState(fpe_state_t *dest, fpe_state_t *src, int f
             dest->texture[i].texmat = 0;
             dest->texture[i].texadjust = 0;
             dest->texture[i].textype = 0;
+            dest->texture[i].texlodbias = 0;
         }
         dest->colorsum = 0;
         dest->normalize = 0;
@@ -1364,6 +1367,7 @@ void realize_glenv(int ispoint, int first, int count, GLenum type, const void* i
             // specific FPE
             GoUniformfv(glprogram, glprogram->builtin_texenvrgbscale[i], 1, 1, &glstate->texenv[i].env.rgb_scale);
             GoUniformfv(glprogram, glprogram->builtin_texenvalphascale[i], 1, 1, &glstate->texenv[i].env.alpha_scale);
+            GoUniformfv(glprogram, glprogram->builtin_texlodbias[i], 1, 1, &glstate->texenv[i].filter.lod_bias);
         }
     }
     // texgen
@@ -1657,6 +1661,7 @@ void builtin_Init(program_t *glprogram) {
     for (int i=0; i<MAX_TEX; i++) {
         glprogram->builtin_texenvcolor[i] = -1;
         glprogram->builtin_texenvrgbscale[i] = -1;
+        glprogram->builtin_texlodbias[i] = -1;
         glprogram->builtin_texenvalphascale[i] = -1;
         for (int j=0; j<4; j++) {
             glprogram->builtin_eye[j][i] = -1;
@@ -1723,6 +1728,7 @@ const char texgenCoords[4] = {'S', 'T', 'R', 'Q'};
 const char* alpharef_code = "_gl4es_AlphaRef";
 const char* fpetexSampler_code = "_gl4es_TexSampler_";
 const char* fpetexenvRGBScale_code = "_gl4es_TexEnvRGBScale_";
+const char* fpetexlodbias_code = "_gl4es_TexLodBias_";
 const char* fpetexenvAlphaScale_code = "_gl4es_TexEnvAlphaScale_";
 const char* fpetexAdjust_code = "_gl4es_TexAdjust_";
 const char* fog_code = "_gl4es_Fog.";
@@ -2000,6 +2006,18 @@ int builtin_CheckUniform(program_t *glprogram, char* name, GLint id, int size) {
             n = n*10 + name[l+1]-'0';
         if(n>=0 && n<hardext.maxtex) {
             glprogram->builtin_texenvcolor[n] = id;
+            glprogram->has_builtin_texenv = 1;
+            return 1;
+        }
+    }
+    // texture LOD bias
+    if(strncmp(name, fpetexlodbias_code, strlen(fpetexlodbias_code))==0) {
+        int l = strlen(fpetexlodbias_code);
+        int n = name[l]-'0';
+        if(name[l+1]>='0' && name[l+1]<='9')
+            n = n*10 + name[l+1]-'0';
+        if(n>=0 && n<hardext.maxtex) {
+            glprogram->builtin_texlodbias[n] = id;
             glprogram->has_builtin_texenv = 1;
             return 1;
         }

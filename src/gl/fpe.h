@@ -149,6 +149,7 @@ typedef struct fpe_texture_s {
   unsigned int textype:3;               // textures type stored on 3 bits
   unsigned int texadjust:1;             // flags if texture need adjustement
   unsigned int texformat:3;             // textures (simplified) internal format on 3 bits
+  unsigned int texlodbias:1;            // the unit's GL_TEXTURE_LOD_BIAS (texture environment) is not 0
 } fpe_texture_t;
 
 typedef struct fpe_texenv_s {
