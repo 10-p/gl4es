@@ -613,8 +613,10 @@ char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
   }
 
   const char* GLESUseShaderNonConstantGlobalInitialzers = "#extension GL_EXT_shader_non_constant_global_initializers : enable\n";
-  Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, 1), GLESUseShaderNonConstantGlobalInitialzers, Tmp, &tmpsize);
-  ++headline;
+  if(hardext.esversion<3) {   // GLSL ES 3.00 drivers (WebGL 2, Mesa) warn about it on every shader
+    Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, 1), GLESUseShaderNonConstantGlobalInitialzers, Tmp, &tmpsize);
+    ++headline;
+  }
 
   Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, headline-1), "#define GL4ES\n", Tmp, &tmpsize);
 
@@ -638,7 +640,8 @@ char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
     Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, 1), useEXTDrawBuffers, Tmp, &tmpsize);
   }
   // if some functions are used, add some int/float alternative
-  if(!fpeShader && !globals4es.nointovlhack) {
+  // (not in GLSL ES 3.00, which forbids overloading a built-in function)
+  if(!fpeShader && !globals4es.nointovlhack && hardext.esversion<3) {
     if(strstr(Tmp, "pow(") || strstr(Tmp, "pow (")) {
         Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, headline), HackAltPow, Tmp, &tmpsize);
     }
