@@ -68,6 +68,7 @@ typedef struct _globals4es {
  int nopsa;
  int noes2;
  int nointovlhack;
+ int forcehighp;
  int noshaderlod;
  int fbo_noalpha;
  int noarbprogram;      // to disable ARB Program

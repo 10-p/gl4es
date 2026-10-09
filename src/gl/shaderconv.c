@@ -539,7 +539,10 @@ char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
 
   //const char* GLESUseFragHighp = "#extension GL_OES_fragment_precision_high : enable\n"; // is this needed?  
   char GLESFullHeader[512];
-  int wanthighp = !fpeShader;
+  // LIBGL_FORCEHIGHP: highp for the fixed-function shaders too (by default they are mediump, with
+  // some lowp/mediump variables), and highp as the default precision of samplers (lowp otherwise).
+  int forcehighp = globals4es.forcehighp && hardext.highp;
+  int wanthighp = !fpeShader || forcehighp;
   if(wanthighp && !hardext.highp) wanthighp = 0;
   int versionHeader = 0;
   #if 0
@@ -558,10 +561,16 @@ char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
   #endif
   //sprintf(GLESFullHeader, GLESHeader, (wanthighp && hardext.highp==1 && !isVertex)?GLESUseFragHighp:"", (wanthighp)?"highp":"mediump", (wanthighp)?"highp":"mediump");
   sprintf(GLESFullHeader, GLESHeader[versionHeader], "", (wanthighp)?"highp":"mediump", (wanthighp)?"highp":"mediump");
+  if(forcehighp)  // on the int line: the header keeps its three lines (headline below counts them)
+    strcpy(GLESFullHeader+strlen(GLESFullHeader)-1, " precision highp sampler2D; precision highp samplerCube;\n");
 
   int tmpsize = strlen(pBuffer)*2+strlen(GLESFullHeader)+100;
   char* Tmp = (char*)calloc(1, tmpsize);
   strcpy(Tmp, pBuffer);
+  if(fpeShader && forcehighp) {
+    Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "lowp", "highp");
+    Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "mediump", "highp");
+  }
 
   // and now change the version header, and add default precision
   char* newptr;

@@ -237,6 +237,7 @@ void initialize_gl4es() {
     int gl4es_notest = IsEnvVarTrue("LIBGL_NOTEST");
 #endif
     env(LIBGL_NOHIGHP, globals4es.nohighp, "Do not use HIGHP in fragment shader even if detected");
+    env(LIBGL_FORCEHIGHP, globals4es.forcehighp, "HIGHP everywhere when the fragment shader has it: GL4ES' own fixed-function shaders and sampler lookups too");
 
     globals4es.floattex=ReturnEnvVarIntDef("LIBGL_FLOAT", 1);
     switch(globals4es.floattex) {
