@@ -490,7 +490,7 @@ void APIENTRY_GL4ES gl4es_glFramebufferTexture2D(GLenum target, GLenum attachmen
                 gltexture_t *bound = glstate->texture.bound[0/*glstate->texture.active*/][ENABLED_TEX2D];
                 GLuint oldtex = bound->glname;
                 if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, tex->glname);
-                gles_glTexImage2D(GL_TEXTURE_2D, 0, tex->format, tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
+                gles_glTexImage2D(GL_TEXTURE_2D, 0, gl4es_es3internal(tex->format, tex->type), tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
                 if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, oldtex);
                 if(oldactive) gles_glActiveTexture(GL_TEXTURE0+oldactive);
             }
@@ -518,7 +518,7 @@ void APIENTRY_GL4ES gl4es_glFramebufferTexture2D(GLenum target, GLenum attachmen
                 gltexture_t *bound = glstate->texture.bound[0/*glstate->texture.active*/][ENABLED_TEX2D];
                 GLuint oldtex = bound->glname;
                 if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, tex->glname);
-                gles_glTexImage2D(GL_TEXTURE_2D, 0, tex->format, tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
+                gles_glTexImage2D(GL_TEXTURE_2D, 0, gl4es_es3internal(tex->format, tex->type), tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
                 if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, oldtex);
                 if(oldactive) gles_glActiveTexture(GL_TEXTURE0+oldactive);
             }
@@ -532,7 +532,7 @@ void APIENTRY_GL4ES gl4es_glFramebufferTexture2D(GLenum target, GLenum attachmen
                 gltexture_t *bound = glstate->texture.bound[glstate->texture.active][ENABLED_TEX2D];
                 GLuint oldtex = bound->glname;
                 if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, tex->glname);
-                gles_glTexImage2D(GL_TEXTURE_2D, 0, tex->format, tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
+                gles_glTexImage2D(GL_TEXTURE_2D, 0, gl4es_es3internal(tex->format, tex->type), tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
                 if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, oldtex);
             }*/
 
@@ -611,7 +611,7 @@ void APIENTRY_GL4ES gl4es_glFramebufferTexture2D(GLenum target, GLenum attachmen
                 gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
                 gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
                 gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-                gles_glTexImage2D(GL_TEXTURE_2D, 0, tex->format, tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
+                gles_glTexImage2D(GL_TEXTURE_2D, 0, gl4es_es3internal(tex->format, tex->type), tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
                 if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, oldtex);
                 if(oldactive) gles_glActiveTexture(GL_TEXTURE0+oldactive);
             }
@@ -676,7 +676,7 @@ void APIENTRY_GL4ES gl4es_glFramebufferTexture2D(GLenum target, GLenum attachmen
                     gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
                     gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
                     gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-                    gles_glTexImage2D(GL_TEXTURE_2D, 0, tex->format, tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
+                    gles_glTexImage2D(GL_TEXTURE_2D, 0, gl4es_es3internal(tex->format, tex->type), tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
                     if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, oldtex);
                     if(oldactive) gles_glActiveTexture(GL_TEXTURE0+oldactive);
                 }
@@ -716,12 +716,16 @@ void APIENTRY_GL4ES gl4es_glFramebufferTexture2D(GLenum target, GLenum attachmen
                     gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
                     gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
                     gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-                    gles_glTexImage2D(GL_TEXTURE_2D, 0, tex->format, tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
+                    gles_glTexImage2D(GL_TEXTURE_2D, 0, gl4es_es3internal(tex->format, tex->type), tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
                     if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, oldtex);
                     if(oldactive) gles_glActiveTexture(GL_TEXTURE0+oldactive);
                 }
-                gles_glFramebufferTexture2D(ntarget, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, texture, 0);
-                gles_glFramebufferTexture2D(ntarget, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, texture, 0);
+                if(hardext.esversion>2)     // one point for the image (WebGL 2 wants that)
+                    gles_glFramebufferTexture2D(ntarget, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, texture, 0);
+                else {
+                    gles_glFramebufferTexture2D(ntarget, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, texture, 0);
+                    gles_glFramebufferTexture2D(ntarget, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, texture, 0);
+                }
             } else {
                 if(tex && !tex->renderdepth) {
                     gl4es_glGenRenderbuffers(1, &tex->renderdepth);
@@ -750,7 +754,7 @@ void APIENTRY_GL4ES gl4es_glFramebufferTexture2D(GLenum target, GLenum attachmen
                     gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
                     gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
                     gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-                    gles_glTexImage2D(GL_TEXTURE_2D, 0, tex->format, tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
+                    gles_glTexImage2D(GL_TEXTURE_2D, 0, gl4es_es3internal(tex->format, tex->type), tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
                     if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, oldtex);
                     if(oldactive) gles_glActiveTexture(GL_TEXTURE0+oldactive);
                 }
@@ -893,8 +897,8 @@ void APIENTRY_GL4ES gl4es_glFramebufferRenderbuffer(GLenum target, GLenum attach
         return;
     }
 
-    if (attachment==GL_DEPTH_STENCIL_ATTACHMENT) {
-        // doesn't seems to be supported "as-is" on GLES on PVR
+    if (attachment==GL_DEPTH_STENCIL_ATTACHMENT && hardext.esversion<3) {
+        // doesn't seems to be supported "as-is" on GLES on PVR (GLES 3 has it in core)
         gl4es_glFramebufferRenderbuffer(target, GL_DEPTH_ATTACHMENT, renderbuffertarget, renderbuffer);
         gl4es_glFramebufferRenderbuffer(target, GL_STENCIL_ATTACHMENT, renderbuffertarget, renderbuffer);
         return;
@@ -964,6 +968,13 @@ void APIENTRY_GL4ES gl4es_glDeleteRenderbuffers(GLsizei n, GLuint *renderbuffers
     errorGL();
     gles_glDeleteRenderbuffers(n, renderbuffers);
 }
+
+// OpenGL ES 3.0 entry points (not in the generated GLES 2 wrappers).
+typedef void (APIENTRY_GLES * glRenderbufferStorageMultisample_PTR)(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
+typedef void (APIENTRY_GLES * glBlitFramebuffer_PTR)(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
+
+// Samples asked by glRenderbufferStorageMultisample for the storage call it makes (GLES 3 only).
+static GLsizei renderbuffer_samples = 0;
 
 void APIENTRY_GL4ES gl4es_glRenderbufferStorage(GLenum target, GLenum internalformat, GLsizei width, GLsizei height) {
     DBG(printf("glRenderbufferStorage(%s, %s, %i, %i)\n", PrintEnum(target), PrintEnum(internalformat), width, height);)
@@ -1042,7 +1053,7 @@ void APIENTRY_GL4ES gl4es_glRenderbufferStorage(GLenum target, GLenum internalfo
         if (oldtex!=rend->secondarytexture) gles_glBindTexture(GL_TEXTURE_2D, rend->secondarytexture);
         tex->nwidth = tex->width = width;
         tex->nheight = tex->height = height;
-        gles_glTexImage2D(GL_TEXTURE_2D, 0, tex->format, tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
+        gles_glTexImage2D(GL_TEXTURE_2D, 0, gl4es_es3internal(tex->format, tex->type), tex->nwidth, tex->nheight, 0, tex->format, tex->type, NULL);
         if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, oldtex);
         if(oldactive) gles_glActiveTexture(GL_TEXTURE0+oldactive);
     }
@@ -1052,12 +1063,24 @@ void APIENTRY_GL4ES gl4es_glRenderbufferStorage(GLenum target, GLenum internalfo
     rend->format = format;
     rend->actual = internalformat;
 
+    if(renderbuffer_samples>1) {
+        LOAD_GLES2(glRenderbufferStorageMultisample);
+        if(gles_glRenderbufferStorageMultisample) {
+            gles_glRenderbufferStorageMultisample(target, renderbuffer_samples, internalformat, width, height);
+            DBG(CheckGLError(1);)
+            return;
+        }
+    }
     gles_glRenderbufferStorage(target, internalformat, width, height);
     DBG(CheckGLError(1);)
 }
 
-void APIENTRY_GL4ES gl4es_glRenderbufferStorageMultisample(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height) {    //STUB
+void APIENTRY_GL4ES gl4es_glRenderbufferStorageMultisample(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height) {
+    // GLES 2 has no multisampled renderbuffers: single-sampled storage (the old stub). GLES 3 / WebGL 2:
+    // the real thing, with the same format translation as glRenderbufferStorage.
+    renderbuffer_samples = (hardext.esversion>2)?samples:0;
     gl4es_glRenderbufferStorage(target, internalformat, width, height);
+    renderbuffer_samples = 0;
 }
 
 void APIENTRY_GL4ES gl4es_glBindRenderbuffer(GLenum target, GLuint renderbuffer) {
@@ -1398,6 +1421,25 @@ void APIENTRY_GL4ES gl4es_glBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX
     DBG(printf("glBlitFramebuffer(%d, %d, %d, %d,  %d, %d, %d, %d,  0x%04X, %s) fbo_read=%d, fbo_draw=%d\n",
         srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, PrintEnum(filter), glstate->fbo.fbo_read->id, glstate->fbo.fbo_draw->id);)
 
+    if(hardext.esversion>2) {
+        // GLES 3 / WebGL 2 have a real blit, with depth and stencil and multisample resolve. GL4ES
+        // emulates separate read and draw framebuffers by binding GL_FRAMEBUFFER only; the real
+        // bindings are made for the call, and GL_FRAMEBUFFER is put back to what GL4ES has bound.
+        LOAD_GLES2(glBlitFramebuffer);
+        LOAD_GLES2_OR_OES(glBindFramebuffer);
+        if(gles_glBlitFramebuffer) {
+            GLuint readfb = glstate->fbo.fbo_read->id?glstate->fbo.fbo_read->id:glstate->fbo.mainfbo_fbo;
+            GLuint drawfb = glstate->fbo.fbo_draw->id?glstate->fbo.fbo_draw->id:glstate->fbo.mainfbo_fbo;
+            GLuint currentfb = glstate->fbo.current_fb->id?glstate->fbo.current_fb->id:glstate->fbo.mainfbo_fbo;
+            gles_glBindFramebuffer(GL_READ_FRAMEBUFFER, readfb);
+            gles_glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawfb);
+            errorGL();
+            gles_glBlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+            DBG(CheckGLError(1);)
+            gles_glBindFramebuffer(GL_FRAMEBUFFER, currentfb);
+            return;
+        }
+    }
     if((mask&GL_COLOR_BUFFER_BIT)==0)
         return; // cannot copy DEPTH or STENCIL data on GLES, only COLOR_BUFFER...
 

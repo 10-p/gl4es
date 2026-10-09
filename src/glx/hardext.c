@@ -155,7 +155,7 @@ void GetHardwareExtensions(int notest)
     EGLSurface eglSurface;
     EGLContext eglContext;
 
-    SHUT_LOGD("Using GLES %s backend\n", (hardext.esversion==1)?"1.1":"2.0");
+    SHUT_LOGD("Using GLES %s backend\n", (hardext.esversion==1)?"1.1":(hardext.esversion==3)?"3.0":"2.0");
 
     // Create a PBuffer first...
     EGLint egl_context_attrib_es2[] = {
@@ -347,6 +347,20 @@ void GetHardwareExtensions(int notest)
     S("GL_AOS4_texture_format_RGBA1555REV", rgba1555rev, 1);
     S("GL_AOS4_texture_format_RGBA8888", rgba8888, 1);
     S("GL_AOS4_texture_format_RGBA8888REV", rgba8888rev, 1);
+    if(hardext.esversion>2) {
+        // OpenGL ES 3.0 / WebGL 2 have these in core. A WebGL 2 context does not list their ES 2
+        // extension names (WEBGL_depth_texture, OES_element_index_uint...), so they are taken from the
+        // version, not from the extension string.
+        hardext.npot = 3;
+        hardext.blendminmax = 1;
+        hardext.elementuint = 1;
+        hardext.depthstencil = 1;
+        hardext.depth24 = 1;
+        hardext.rgba8 = 1;
+        if(!globals4es.nodepthtex)
+            hardext.depthtex = 1;
+        SHUT_LOGD("GLES 3.0: full NPOT, min/max blending, 32-bit indices, %spacked depth-stencil, 24-bit depth and RGBA8 renderbuffers are in core, and so used\n", hardext.depthtex?"depth textures, ":"");
+    }
 
     if (hardext.esversion>1) {
         if(!globals4es.nohighp) {

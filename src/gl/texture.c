@@ -903,6 +903,21 @@ GLenum minmag_float(GLenum filt) {
     }
 }
 
+// OpenGL ES 3.0 / WebGL 2 reject the unsized depth internal formats GLES 2 uses with
+// OES_depth_texture / WEBGL_depth_texture: there the internal format of a depth texture is sized.
+// Every other unsized format GL4ES hands down (RGBA, RGB, LUMINANCE, ALPHA, ...) is still valid.
+GLenum gl4es_es3internal(GLenum format, GLenum type) {
+    if(hardext.esversion<3)
+        return format;
+    switch(format) {
+        case GL_DEPTH_COMPONENT:
+            return (type==GL_UNSIGNED_SHORT)?GL_DEPTH_COMPONENT16:GL_DEPTH_COMPONENT24;
+        case GL_DEPTH_STENCIL:
+            return GL_DEPTH24_STENCIL8;
+    }
+    return format;
+}
+
 void APIENTRY_GL4ES gl4es_glTexImage2D(GLenum target, GLint level, GLint internalformat,
                   GLsizei width, GLsizei height, GLint border,
                   GLenum format, GLenum type, const GLvoid *data) {
@@ -993,7 +1008,7 @@ void APIENTRY_GL4ES gl4es_glTexImage2D(GLenum target, GLint level, GLint interna
                 gl4es_glRenderbufferStorage(GL_RENDERBUFFER, (bound->binded_attachment==GL_DEPTH_ATTACHMENT)?GL_DEPTH_COMPONENT16:GL_DEPTH24_STENCIL8, nwidth, nheight);
                 gl4es_glBindRenderbuffer(GL_RENDERBUFFER, 0);
             } else {
-                gles_glTexImage2D(GL_TEXTURE_2D, 0, bound->format, bound->nwidth, bound->nheight, 0, bound->format, bound->type, NULL);
+                gles_glTexImage2D(GL_TEXTURE_2D, 0, gl4es_es3internal(bound->format, bound->type), bound->nwidth, bound->nheight, 0, bound->format, bound->type, NULL);
             }
         }
         if((bound->binded_attachment==GL_STENCIL_ATTACHMENT || bound->binded_attachment==GL_DEPTH_STENCIL_ATTACHMENT) && bound->renderstencil)
@@ -1420,7 +1435,7 @@ void APIENTRY_GL4ES gl4es_glTexImage2D(GLenum target, GLint level, GLint interna
             
             if (height != nheight || width != nwidth) {
                 errorGL();
-                gles_glTexImage2D(rtarget, level, format, nwidth, nheight, border,
+                gles_glTexImage2D(rtarget, level, gl4es_es3internal(format, type), nwidth, nheight, border,
                                 format, type, NULL);
                 DBG(CheckGLError(1);)
                 if (pixels) {
@@ -1436,13 +1451,13 @@ void APIENTRY_GL4ES gl4es_glTexImage2D(GLenum target, GLint level, GLint interna
                     if(height==1) {gles_glTexSubImage2D(rtarget, level, 0, 1, width, height, format, type, pixels); nheight=1;}
                     if(width==1 && height==1) {   // create a manual mipmap just in case_state
                         gles_glTexSubImage2D(rtarget, level, 1, 1, width, height, format, type, pixels);
-                        gles_glTexImage2D(rtarget, 1, format, 1, 1, 0, format, type, pixels);
+                        gles_glTexImage2D(rtarget, 1, gl4es_es3internal(format, type), 1, 1, 0, format, type, pixels);
                     }
                 }
 #endif
             } else {
                 errorGL();
-                gles_glTexImage2D(rtarget, level, format, width, height, border,
+                gles_glTexImage2D(rtarget, level, gl4es_es3internal(format, type), width, height, border,
                                 format, type, pixels);
                 DBG(CheckGLError(1);)
             }
@@ -1464,7 +1479,7 @@ void APIENTRY_GL4ES gl4es_glTexImage2D(GLenum target, GLint level, GLint interna
                     nww <<= 1;
                     nhh <<= 1;
                     --leveln;
-                    gles_glTexImage2D(rtarget, leveln, format, nww, nhh, border,
+                    gles_glTexImage2D(rtarget, leveln, gl4es_es3internal(format, type), nww, nhh, border,
                                     format, type, (pot)?ndata:NULL);
                     if(!pot && pixels) gles_glTexSubImage2D(rtarget, leveln, 0, 0, nw, nh,
                                         format, type, ndata);
@@ -1494,7 +1509,7 @@ void APIENTRY_GL4ES gl4es_glTexImage2D(GLenum target, GLint level, GLint interna
                     nww = nlevel(nww, 1);
                     nhh = nlevel(nhh, 1);
                     ++leveln;
-                    gles_glTexImage2D(rtarget, leveln, format, nw, nh, border,
+                    gles_glTexImage2D(rtarget, leveln, gl4es_es3internal(format, type), nw, nh, border,
                                     format, type, (pot)?ndata:NULL);
                     if(!pot && pixels) gles_glTexSubImage2D(rtarget, leveln, 0, 0, nww, nhh,
                                         format, type, ndata);

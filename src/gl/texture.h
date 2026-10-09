@@ -5,6 +5,7 @@
 #include "const.h"
 #include "gles.h"
 
+GLenum gl4es_es3internal(GLenum format, GLenum type);
 void APIENTRY_GL4ES gl4es_glTexImage2D(GLenum target, GLint level, GLint internalFormat,
                   GLsizei width, GLsizei height, GLint border,
                   GLenum format, GLenum type, const GLvoid *data);

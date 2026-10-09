@@ -177,6 +177,7 @@ void initialize_gl4es() {
     switch(globals4es.es) {
       case 1:
       case 2:
+      case 3:   // OpenGL ES 3.0 / WebGL 2: the ES2 back end plus what ES 3.0 has in core (hardext.c)
         break;
       default:
         // automatic ES backend selection
@@ -211,7 +212,7 @@ void initialize_gl4es() {
         break;
     }
 
-    SHUT_LOGD("Using GLES %s backend\n", (globals4es.es==1)?"1.1":"2.0");
+    SHUT_LOGD("Using GLES %s backend\n", (globals4es.es==1)?"1.1":(globals4es.es==3)?"3.0":"2.0");
 
     env(LIBGL_NODEPTHTEX, globals4es.nodepthtex, "Disable usage of Depth Textures");
 
