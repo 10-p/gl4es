@@ -29,7 +29,7 @@ typedef struct {
 } texenv_t;
 
 typedef struct {
-    GLfloat         lod_bias;   // GL_TEXTURE_FILTER_CONTROL / GL_TEXTURE_LOD_BIAS (was a GLenum: the float was truncated)
+    GLfloat         lod_bias;   // GL_TEXTURE_FILTER_CONTROL / GL_TEXTURE_LOD_BIAS
 } texfilter_t;
 
 void APIENTRY_GL4ES gl4es_glTexEnvf(GLenum target, GLenum pname, GLfloat param);

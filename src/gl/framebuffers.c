@@ -899,7 +899,7 @@ void APIENTRY_GL4ES gl4es_glFramebufferRenderbuffer(GLenum target, GLenum attach
     }
 
     if (attachment==GL_DEPTH_STENCIL_ATTACHMENT && hardext.esversion<3) {
-        // doesn't seems to be supported "as-is" on GLES on PVR (GLES 3 has it in core)
+        // not supported "as-is" on GLES 2 (GLES 3 has it in core)
         gl4es_glFramebufferRenderbuffer(target, GL_DEPTH_ATTACHMENT, renderbuffertarget, renderbuffer);
         gl4es_glFramebufferRenderbuffer(target, GL_STENCIL_ATTACHMENT, renderbuffertarget, renderbuffer);
         return;
@@ -1078,7 +1078,7 @@ void APIENTRY_GL4ES gl4es_glRenderbufferStorage(GLenum target, GLenum internalfo
 }
 
 void APIENTRY_GL4ES gl4es_glRenderbufferStorageMultisample(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height) {
-    // GLES 2 has no multisampled renderbuffers: single-sampled storage (the old stub). GLES 3 / WebGL 2:
+    // GLES 2 has no multisampled renderbuffers: single-sampled storage. GLES 3 / WebGL 2:
     // the real thing, with the same format translation as glRenderbufferStorage.
     renderbuffer_samples = (hardext.esversion>2)?samples:0;
     gl4es_glRenderbufferStorage(target, internalformat, width, height);

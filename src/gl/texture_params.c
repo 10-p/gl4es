@@ -205,11 +205,8 @@ void APIENTRY_GL4ES gl4es_glBindTexture(GLenum target, GLuint texture) {
             case GL_TEXTURE_CUBE_MAP_NEGATIVE_Y:
             case GL_TEXTURE_CUBE_MAP_POSITIVE_Z:
             case GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
-                // Cube maps are bound immediately (not deferred), so the GLES hardware
-                // active unit must first be synced to the unit the app selected
-                // (glstate->texture.active). glActiveTexture is lazy, so without this the
-                // cube binds to the stale hardware-active unit; a multitexture samplerCube
-                // (correctly assigned its unit) then reads an unbound unit -> black.
+                // Cube maps are bound immediately, not deferred, and glActiveTexture is lazy: sync the
+                // GLES active unit to the app's (glstate->texture.active) so the cube binds to that unit.
                 realize_active();
                 gles_glBindTexture(target, tex?tex->glname:0);
                 break;
@@ -866,7 +863,7 @@ void realize_textures(int drawing) {
     DBG(printf("realize_textures(%d), glstate->bound_changed=%d, glstate->enable.texture[0]=%X glsate->actual_tex2d[0]=%u\n", drawing, glstate->bound_changed, glstate->enable.texture[0], glstate->actual_tex2d[0]);)
 #endif
     for (int i=0; i<glstate->bound_changed; i++) {
-        // get highest priority texture target of unit i (was the ACTIVE unit's flags for every unit)
+        // get highest priority texture target of unit i
         int tmp = glstate->enable.texture[i];
         int tgt = ENABLED_TEX2D; // default to TEX2D
         if(IS_TEX3D(tmp))
@@ -882,9 +879,8 @@ void realize_textures(int drawing) {
 
         GLenum target = map_tex_target(to_target(tgt));
         gltexture_t *tex = glstate->texture.bound[i][tgt];
-        // CUBE MAP are immediately bound (gl4es_glBindTexture), but the GLES 2D slot of the unit still has to
-        // hold the unit's 2D texture: a GLSL program's sampler2D on this unit reads it whatever the
-        // fixed-function enables say (before: the 2D bind was skipped and the slot kept a stale texture).
+        // Cube maps are bound immediately (gl4es_glBindTexture), but the unit's GLES 2D slot still holds
+        // its 2D texture: a GLSL sampler2D on this unit reads it whatever the fixed-function enables say.
         gltexture_t *tex2d = (tgt==ENABLED_CUBE_MAP)?glstate->texture.bound[i][ENABLED_TEX2D]:tex;
         GLuint t = tex2d->glname;
         {

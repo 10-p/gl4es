@@ -162,11 +162,9 @@ static int fpe_reflectcube(fpe_state_t* state, int i) {
         && state->texgen[i].texgen_s && state->texgen[i].texgen_s_mode==FPE_TG_REFLECMAP;
 }
 
-// Same defect, but for a 2D camera/world environment map driven by GL_REFLECTION_MAP
-// (sampled via texture2DProj). fpe_reflectcube() above is FPE_TEX_CUBE-only, so a 2D
-// reflection-map stage falls back to the per-vertex texgen path: the interpolated,
-// perspective-divided reflected vector collapses to a solid color with distance/grazing
-// angle on small/dense polys. Compute its reflection per-fragment too.
+// The same for a 2D camera/world environment map driven by GL_REFLECTION_MAP: per-vertex
+// texgen would interpolate the perspective-divided reflected vector, which collapses to a
+// solid color with distance or grazing angle on small polygons.
 static int fpe_reflect2d(fpe_state_t* state, int i) {
     return state && state->texture[i].textype==FPE_TEX_2D
         && state->texgen[i].texgen_s && state->texgen[i].texgen_s_mode==FPE_TG_REFLECMAP;
@@ -1021,9 +1019,8 @@ const char* const* fpe_FragmentShader(shaderconv_need_t* need, fpe_state_t *stat
                     sprintf(buff, "vec3 _gl4es_refl%d = reflect(normalize(_gl4es_ReflEye_%d), normalize(_gl4es_ReflNrm_%d));\n    vec4 texColor%d = textureCube(_gl4es_TexSampler_%d, (_gl4es_TextureMatrix_%d * vec4(_gl4es_refl%d, 1.0)).stp%s);\n", i, i, i, i, i, i, i, bias);
                 } else if(fpe_reflect2d(state, i)) {
                     // per-fragment reflection for a 2D camera/world env map. A reflection is a
-                    // direction, so sample the env coords NON-projectively (.xy, no texture2DProj
-                    // perspective divide). Correct for any texture-matrix w the driver produces, so
-                    // the collapse-prone w can never break it and no driver-side w-row fixup is needed.
+                    // direction, so the env coords are sampled non-projectively (.xy, no perspective
+                    // divide), whatever w the texture matrix produces.
                     sprintf(buff, "vec3 _gl4es_refl%d = reflect(normalize(_gl4es_ReflEye_%d), normalize(_gl4es_ReflNrm_%d));\n    vec4 texColor%d = texture2D(_gl4es_TexSampler_%d, (_gl4es_TextureMatrix_%d * vec4(_gl4es_refl%d, 1.0)).xy%s);\n", i, i, i, i, i, i, i, bias);
                 } else
                     sprintf(buff, "vec4 texColor%d = %s(_gl4es_TexSampler_%d, _gl4es_TexCoord_%d%s);\n", i, texname[t-1], i, i, bias);
