@@ -1,4 +1,5 @@
 #include "texture.h"
+#include "texture_transcode.h"
 
 #include "../glx/hardext.h"
 #include "../glx/streaming.h"
@@ -204,7 +205,42 @@ void APIENTRY_GL4ES gl4es_glCompressedTexImage2D(GLenum target, GLint level, GLe
     
     GLenum format = GL_RGBA;
     GLenum type = GL_UNSIGNED_BYTE;
-        
+
+    const GLenum dxtupload = isDXTc(internalformat)?dxt_upload_format(internalformat):0;
+    if (dxtupload) {
+        // DXTn goes to the driver compressed: as it is with S3TC, else transcoded (texture_transcode.c).
+        GLvoid *blocks = datab;
+        GLsizei size = imageSize;
+        if (dxtupload!=internalformat) {
+            size = dxt_upload_size(dxtupload, width, height);
+            blocks = datab?dxt_transcode(internalformat, dxtupload, width, height, datab):NULL;
+            if (datab && !blocks) {
+                LOGE("Transcoding a %dx%d %s texture to %s failed\n", width, height, PrintEnum(internalformat), PrintEnum(dxtupload));
+                blocks = calloc(1, size);
+            }
+        }
+        LOAD_GLES(glCompressedTexImage2D);
+        bound->alpha = (internalformat==GL_COMPRESSED_RGB_S3TC_DXT1_EXT || internalformat==GL_COMPRESSED_SRGB_S3TC_DXT1_EXT)?0:1;
+        bound->format = GL_RGBA;
+        bound->type = GL_UNSIGNED_BYTE;
+        bound->wanted_internal = bound->internalformat = internalformat;
+        bound->compressed = 1;
+        bound->valid = 1;
+        if (glstate->fpe_state && glstate->fpe_bound_changed < glstate->texture.active+1)
+            glstate->fpe_bound_changed = glstate->texture.active+1;
+        gles_glCompressedTexImage2D(rtarget, level, dxtupload, width, height, border, size, blocks);
+        errorGL();
+        // DXT data loses nothing at ASTC's 8-bit decode precision, which samples faster than the default 16-bit.
+        if (hardext.astcdecode && level==0 && rtarget==GL_TEXTURE_2D && (dxtupload==0x93B0 || dxtupload==0x93D0)) {
+            LOAD_GLES(glTexParameteri);
+            gles_glTexParameteri(rtarget, 0x8F69 /* GL_TEXTURE_ASTC_DECODE_PRECISION_EXT */, GL_RGBA8);
+        }
+        if (blocks!=datab)
+            free(blocks);
+        glstate->vao->unpack = unpack;
+        return;
+    }
+
     if (isDXTc(internalformat)) {
         if(level && bound->mipmap_auto==1)
             return; // nothing to do
@@ -365,6 +401,24 @@ void APIENTRY_GL4ES gl4es_glCompressedTexSubImage2D(GLenum target, GLint level, 
     int simpleAlpha = 0;
     int complexAlpha = 0;
     int transparent0 = (format==GL_COMPRESSED_RGBA_S3TC_DXT1_EXT || format==GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT)?1:0;
+    const GLenum dxtupload = isDXTc(format)?dxt_upload_format(format):0;
+    if (dxtupload) {
+        // As in glCompressedTexImage2D: the driver gets DXTn as it is, or transcoded.
+        GLvoid *blocks = datab;
+        GLsizei size = imageSize;
+        if (dxtupload!=format) {
+            size = dxt_upload_size(dxtupload, width, height);
+            blocks = dxt_transcode(format, dxtupload, width, height, datab);
+            if (!blocks) {
+                LOGE("Transcoding a %dx%d %s texture to %s failed\n", width, height, PrintEnum(format), PrintEnum(dxtupload));
+                blocks = calloc(1, size);
+            }
+        }
+        gles_glCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, dxtupload, size, blocks);
+        if (blocks!=datab)
+            free(blocks);
+        return;
+    }
     if (isDXTc(format)) {
         if(level) {
             noerrorShim();

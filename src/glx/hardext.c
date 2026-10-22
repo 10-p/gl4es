@@ -336,6 +336,25 @@ void GetHardwareExtensions(int notest)
     }
     S("GL_OES_draw_texture ", drawtex, 1);
     S("GL_EXT_texture_rg ", rgtex, 1);
+    S("GL_EXT_texture_compression_s3tc ", s3tc, 1);
+    S("WEBGL_compressed_texture_s3tc ", s3tc, 1);
+    S("GL_EXT_texture_compression_s3tc_srgb ", s3tcsrgb, 1);
+    S("WEBGL_compressed_texture_s3tc_srgb ", s3tcsrgb, 1);
+    S("GL_KHR_texture_compression_astc_ldr ", astc, 1);
+    S("WEBGL_compressed_texture_astc ", astc, 1);
+    S("GL_EXT_texture_compression_astc_decode_mode ", astcdecode, 1);
+#ifdef __EMSCRIPTEN__
+    // WebGL 2 reports an ES 3.0 version, but has ETC2 only through its extension.
+    S("WEBGL_compressed_texture_etc ", etc2, 1);
+#else
+    {
+        const char *version = (const char *) gles_glGetString(GL_VERSION);
+        if(version && strstr(version, "OpenGL ES 3")) {
+            hardext.etc2 = 1;
+            SHUT_LOGD("ETC2 detected (OpenGL ES 3) and used\n");
+        }
+    }
+#endif
     if(globals4es.floattex) {
         S("GL_OES_texture_float ", floattex, 1);
         S("GL_OES_texture_half_float ", halffloattex, 1);

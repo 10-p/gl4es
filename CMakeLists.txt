@@ -28,6 +28,7 @@ option(USE_CCACHE "Set to ON to use ccache if present in the system" ${USE_CCACH
 option(USE_CLOCK "Set to ON to use clock_gettime instead of gttimeofday for LIBGL_FPS" ${USE_CLOCK})
 option(NO_LOADER "disable library loader (useful for static library with NOEGL, NOX11, use include/gl4esinit.h)" ${NO_LOADER})
 option(NO_INIT_CONSTRUCTOR "disable automatic initialization (useful for static library, use include/gl4esinit.h)" ${NO_INIT_CONSTRUCTOR})
+option(GL4ES_TRANSCODE "Transcode DXTn to ASTC or ETC2 for drivers without S3TC (fetches astc-encoder and etcpak)" ON)
 option(DEFAULT_GLES "Set to GLES library path if LIBGL_GLES env variable is not set" ${DEFAULT_GLES})
 option(DEFAULT_EGL "Set to EGL library path if LIBGL_EGL env variable is not set" ${DEFAULT_EGL})
 option(DEFAULT_FB "Set to '1', '2' or '3', overrides DEFAULT_FB env variable" ${DEFAULT_FB})

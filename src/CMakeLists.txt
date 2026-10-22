@@ -61,6 +61,7 @@ SET(GL_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/gl/texgen.c
     ${CMAKE_CURRENT_SOURCE_DIR}/gl/texture.c
     ${CMAKE_CURRENT_SOURCE_DIR}/gl/texture_compressed.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/gl/texture_transcode.c
     ${CMAKE_CURRENT_SOURCE_DIR}/gl/texture_params.c
     ${CMAKE_CURRENT_SOURCE_DIR}/gl/texture_read.c
     ${CMAKE_CURRENT_SOURCE_DIR}/gl/texture_3d.c
@@ -227,7 +228,7 @@ else()
       LIBRARY
       DESTINATION "usr/lib/gl4es/"
     )
-    install(FILES "../include/gl4esinit.h" "../include/gl4eshint.h"
+    install(FILES "../include/gl4esinit.h" "../include/gl4eshint.h" "../include/gl4estranscode.h"
       DESTINATION "usr/include/gl4es/"
     )
 endif()
@@ -253,3 +254,16 @@ if(EGL_WRAPPER)
     endif()
 endif()
 
+
+# DXTn transcoding for drivers without S3TC (gl/texture_transcode.c).
+if(GL4ES_TRANSCODE)
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+        set(GL4ES_LIB OPENGL32)
+    else()
+        set(GL4ES_LIB GL)
+    endif()
+    include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/texencoders.cmake)
+    target_sources(${GL4ES_LIB} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/gl/texture_encoders.cpp)
+    target_compile_definitions(${GL4ES_LIB} PRIVATE GL4ES_TRANSCODE=1)
+    target_link_libraries(${GL4ES_LIB} texencoders)
+endif()

@@ -70,6 +70,11 @@ typedef struct _hardext {
     int prgbin_n;       // number of program binary format support
     int shader_fbfetch; // GL_ARM_shader_framebuffer_fetch
     int glsl120;        // does version 120 glsl shader are supported ?
+    int s3tc;           // GL_EXT_texture_compression_s3tc (or WebGL's): DXTn goes to the driver as it is
+    int s3tcsrgb;       // GL_EXT_texture_compression_s3tc_srgb (or WebGL's): so does sRGB DXTn
+    int astc;           // GL_KHR_texture_compression_astc_ldr (or WebGL's)
+    int etc2;           // ETC2/EAC: core in an OpenGL ES 3 context, WEBGL_compressed_texture_etc on the web
+    int astcdecode;     // GL_EXT_texture_compression_astc_decode_mode: ASTC can be decoded at 8-bit precision
     int glsl300es;      // does version 300es glsl shader are supported ?
     int glsl310es;      // does version 300es glsl shader are supported ?
 } hardext_t;
