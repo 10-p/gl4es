@@ -742,6 +742,11 @@ void deleteSingleBuffer(GLuint buffer) {
    else if(glstate->bind_buffer.want_index == buffer) glstate->bind_buffer.want_index = 0;
    else if(glstate->bind_buffer.array == buffer) glstate->bind_buffer.array = 0;
    gles_glDeleteBuffers(1, &buffer);
+   // The driver resets the attribute arrays bound to a deleted buffer to buffer 0, so the hardware state mirror
+   // does too: otherwise a new buffer that gets the same name passes for the one still bound.
+   for (int j = 0; j < hardext.maxvattrib; j++)
+       if (glstate->gleshard->vertexattrib[j].real_buffer == buffer)
+           glstate->gleshard->vertexattrib[j].real_buffer = 0;
 }
 
 void unboundBuffers()
