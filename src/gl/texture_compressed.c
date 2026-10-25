@@ -165,6 +165,114 @@ GLvoid *uncompressDXTc(GLsizei width, GLsizei height, GLenum format, GLsizei ima
     return pixels;
 }
 
+void dxt_levels_reset(gltexture_t *tex) {
+    free(tex->dxt_last);
+    tex->dxt_last = NULL;
+    tex->dxt_levels = 0;
+    tex->dxt_chain = 0;
+}
+
+// What a level-0 DXTn upload the driver gets compressed defines: the texture's size, coordinates used as they are,
+// and the start of the app's level run.
+static void dxt_level0(gltexture_t *bound, GLenum internalformat, GLsizei width, GLsizei height) {
+    bound->width = bound->nwidth = width;
+    bound->height = bound->nheight = height;
+    bound->npot = hardext.npot!=3 && (npot(width)!=width || npot(height)!=height);
+    bound->adjust = 0;
+    bound->adjustxy[0] = bound->adjustxy[1] = 1.0f;
+    bound->fpe_format = (internalformat==GL_COMPRESSED_RGB_S3TC_DXT1_EXT || internalformat==GL_COMPRESSED_SRGB_S3TC_DXT1_EXT)?FPE_TEX_RGB:FPE_TEX_RGBA;
+    bound->mipmap_done = 0;
+    dxt_levels_reset(bound);
+}
+
+// The driver's levels below the app's last one, down to 1x1, from that level's DXTn blocks: decoded, halved level by
+// level and encoded back in the driver's format. The levels then make a whole chain, so the mipmap filters stay.
+static void dxt_derive_levels(gltexture_t *bound, GLenum rtarget, const GLvoid *last) {
+    LOAD_GLES(glCompressedTexImage2D);
+    const GLenum dxtformat = bound->internalformat;
+    const GLenum format = dxt_upload_format(dxtformat);
+    int level = bound->dxt_levels-1;
+    GLsizei w = nlevel(bound->width, level);
+    GLsizei h = nlevel(bound->height, level);
+    GLvoid *rgba = dxt_decode(dxtformat, w, h, last);
+    int ok = 1;
+    while(ok && (w>1 || h>1)) {
+        GLvoid *half = NULL;
+        pixel_halfscale(rgba, &half, w, h, GL_RGBA, GL_UNSIGNED_BYTE);
+        free(rgba);
+        rgba = half;
+        w = nlevel(w, 1);
+        h = nlevel(h, 1);
+        ++level;
+        GLvoid *blocks = dxt_encode(dxtformat, format, w, h, rgba);
+        ok = blocks!=NULL;
+        if(ok) {
+            gles_glCompressedTexImage2D(rtarget, level, format, w, h, 0, dxt_upload_size(format, w, h), blocks);
+            free(blocks);
+        } else
+            LOGE("Encoding the %dx%d level %d of a %s texture to %s failed\n", w, h, level, PrintEnum(dxtformat), PrintEnum(format));
+    }
+    free(rgba);
+    free(bound->dxt_last);
+    bound->dxt_last = NULL;
+    bound->dxt_chain = bound->mipmap_done = ok;
+}
+
+// The app's DXTn level `level` (width x height, data) reached the driver. Levels uploaded from 0 without a gap make
+// the app's run; a run down to 1x1 is a whole chain. The levels below a last level above 1x1 are derived once the
+// run reaches the level GL_TEXTURE_MAX_LEVEL names: here, or from a copy of the last level when that is set later.
+static void dxt_level_uploaded(gltexture_t *bound, GLenum rtarget, GLint level, GLsizei width, GLsizei height, const GLvoid *data) {
+    if(level>bound->dxt_levels)
+        return;
+    if(level==bound->dxt_levels)
+        ++bound->dxt_levels;
+    if(level!=bound->dxt_levels-1)
+        return;     // a level above the last one: the derived levels still follow from the last
+    const int derived = bound->dxt_chain;
+    free(bound->dxt_last);
+    bound->dxt_last = NULL;
+    if(level==maxlevel(bound->width, bound->height)) {
+        bound->dxt_chain = bound->mipmap_done = 1;
+        return;
+    }
+    bound->dxt_chain = bound->mipmap_done = 0;
+    if(!level || !data)
+        return;
+    if(derived || (bound->max_level>0 && level>=bound->max_level)) {
+        dxt_derive_levels(bound, rtarget, data);
+        return;
+    }
+    const GLsizei size = dxt_upload_size(bound->internalformat, width, height);
+    bound->dxt_last = malloc(size);
+    memcpy(bound->dxt_last, data, size);
+}
+
+void dxt_max_level_set(gltexture_t *tex, GLenum target) {
+    if(!tex->dxt_last || tex->max_level<1 || tex->max_level>=tex->dxt_levels)
+        return;
+    FLUSH_BEGINEND;
+    realize_bound(glstate->texture.active, target);
+    dxt_derive_levels(tex, map_tex_target(target), tex->dxt_last);
+}
+
+// A sub-image of the app's last DXTn level above 1x1: a kept copy of that level takes it in; where the levels below
+// were derived already, a sub-image of the whole level derives them again.
+static void dxt_subimage_uploaded(gltexture_t *bound, GLenum rtarget, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, const GLvoid *data) {
+    const GLsizei levelw = nlevel(bound->width, level);
+    const GLsizei levelh = nlevel(bound->height, level);
+    if(level<1 || level!=bound->dxt_levels-1 || level==maxlevel(bound->width, bound->height) || !data
+        || (xoffset&3) || (yoffset&3) || xoffset+width>levelw || yoffset+height>levelh)
+        return;
+    if(bound->dxt_last) {
+        const GLsizei blocksize = dxt_upload_size(bound->internalformat, 1, 1);
+        const GLsizei rowblocks = (levelw+3)/4;
+        const GLsizei w = (width+3)/4;
+        for(int y=0; y<(height+3)/4; y++)
+            memcpy((char*)bound->dxt_last+((yoffset/4+y)*rowblocks+xoffset/4)*blocksize, (const char*)data+y*w*blocksize, w*blocksize);
+    } else if(bound->dxt_chain && width==levelw && height==levelh)
+        dxt_derive_levels(bound, rtarget, data);
+}
+
 void APIENTRY_GL4ES gl4es_glCompressedTexImage2D(GLenum target, GLint level, GLenum internalformat,
                             GLsizei width, GLsizei height, GLint border,
                             GLsizei imageSize, const GLvoid *data) 
@@ -226,6 +334,8 @@ void APIENTRY_GL4ES gl4es_glCompressedTexImage2D(GLenum target, GLint level, GLe
         bound->wanted_internal = bound->internalformat = internalformat;
         bound->compressed = 1;
         bound->valid = 1;
+        if (level==0)
+            dxt_level0(bound, internalformat, width, height);
         if (glstate->fpe_state && glstate->fpe_bound_changed < glstate->texture.active+1)
             glstate->fpe_bound_changed = glstate->texture.active+1;
         gles_glCompressedTexImage2D(rtarget, level, dxtupload, width, height, border, size, blocks);
@@ -237,6 +347,8 @@ void APIENTRY_GL4ES gl4es_glCompressedTexImage2D(GLenum target, GLint level, GLe
         }
         if (blocks!=datab)
             free(blocks);
+        if (rtarget==GL_TEXTURE_2D)
+            dxt_level_uploaded(bound, rtarget, level, width, height, datab);
         glstate->vao->unpack = unpack;
         return;
     }
@@ -371,6 +483,8 @@ void APIENTRY_GL4ES gl4es_glCompressedTexImage2D(GLenum target, GLint level, GLe
         bound->wanted_internal = bound->internalformat = internalformat;
         bound->compressed = 1;
         bound->valid = 1;
+        if (level==0)
+            dxt_levels_reset(bound);
         if (glstate->fpe_state && glstate->fpe_bound_changed < glstate->texture.active+1)
             glstate->fpe_bound_changed = glstate->texture.active+1;
         gles_glCompressedTexImage2D(rtarget, level, internalformat, width, height, border, imageSize, datab);
@@ -417,6 +531,8 @@ void APIENTRY_GL4ES gl4es_glCompressedTexSubImage2D(GLenum target, GLint level, 
         gles_glCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, dxtupload, size, blocks);
         if (blocks!=datab)
             free(blocks);
+        if (map_tex_target(target)==GL_TEXTURE_2D)
+            dxt_subimage_uploaded(bound, GL_TEXTURE_2D, level, xoffset, yoffset, width, height, datab);
         return;
     }
     if (isDXTc(format)) {

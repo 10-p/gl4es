@@ -240,7 +240,7 @@ GLenum get_texture_min_filter(gltexture_t* texture, glsampler_t* sampler)
     GLenum ret = sampler->min_filter;
     if ((globals4es.automipmap==3) 
     || ((globals4es.automipmap==1) && (texture->mipmap_auto==0)) 
-    || (texture->compressed && (texture->mipmap_auto==0))) {
+    || (texture->compressed && (texture->mipmap_auto==0) && !texture->dxt_chain)) {
         switch (ret) {
             case GL_NEAREST_MIPMAP_NEAREST:
             case GL_NEAREST_MIPMAP_LINEAR:
@@ -306,8 +306,10 @@ void APIENTRY_GL4ES gl4es_glTexParameterfv(GLenum target, GLenum pname, const GL
         GLint param = params[0];
         switch (pname) {
             case GL_TEXTURE_MAX_LEVEL:
-                if (texture)
+                if (texture) {
                     texture->max_level = param;
+                    dxt_max_level_set(texture, target);
+                }
                 return;            // not on GLES
             case GL_TEXTURE_BASE_LEVEL:
                 texture->base_level = param;
@@ -413,6 +415,7 @@ void APIENTRY_GL4ES gl4es_glDeleteTextures(GLsizei n, const GLuint *textures) {
                 if (globals4es.texstream && tex->streamed)
                     FreeStreamed(tex->streamingID);
 #endif
+                dxt_levels_reset(tex);
                 #if 1
                 kh_del(tex, list, k);
                 if (tex->data) free(tex->data);
@@ -931,7 +934,7 @@ void realize_textures(int drawing) {
         }
         // check, if drawing, if mipmap needs some special care...
         if(drawing) {
-            if((globals4es.automipmap==3) || ((globals4es.automipmap==1) && (tex->mipmap_auto==0)) || (tex->compressed && (tex->mipmap_auto==0)))
+            if((globals4es.automipmap==3) || ((globals4es.automipmap==1) && (tex->mipmap_auto==0)) || (tex->compressed && (tex->mipmap_auto==0) && !tex->dxt_chain))
                 tex->mipmap_need = 0;
             else
                 tex->mipmap_need = (is_mipmap_needed(&tex->sampler) && (hardext.esversion!=1) && !tex->npot)?1:0;

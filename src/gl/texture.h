@@ -154,6 +154,9 @@ typedef struct {
     GLuint renderstencil;
     int     trace;  // internal use for debug
     GLvoid *data;	// in case we want to keep a copy of it (it that case, always RGBA/GL_UNSIGNED_BYTE
+    int dxt_levels;         // DXTn the driver holds compressed: the app gave levels 0..dxt_levels-1
+    GLboolean dxt_chain;    // and the driver's levels run down to 1x1 (the app's, then those derived from its last)
+    GLvoid *dxt_last;       // the DXTn blocks of the app's last level above 1x1, until the levels below are derived
     glsampler_t sampler;    // internal sampler if not superseded by glBindSampler
     glsampler_t actual;     // actual sampler
     float fbtex_ratio; // Lower rendering resolution
@@ -246,6 +249,11 @@ int minmag_npot(GLenum mag);
 GLenum minmag_forcenpot(GLenum filt);
 GLenum minmag_float(GLenum filt);
 GLboolean isDXTc(GLenum format);
+// GL_TEXTURE_MAX_LEVEL was set on tex, the active unit's texture for target: where the app's DXTn levels reach that
+// level, the driver's levels below the app's last one are derived down to 1x1 (texture_compressed.c).
+void dxt_max_level_set(gltexture_t *tex, GLenum target);
+// The texture no longer holds the app's DXTn levels (deleted, or level 0 specified another way): their tracking ends.
+void dxt_levels_reset(gltexture_t *tex);
 
 void realize_bound(int TMU, GLenum target);
 void realize_1texture(GLenum target, int TMU, gltexture_t* tex, glsampler_t* sampler);

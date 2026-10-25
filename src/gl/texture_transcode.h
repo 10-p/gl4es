@@ -11,5 +11,10 @@ GLsizei dxt_upload_size(GLenum format, GLsizei width, GLsizei height);
 // Transcodes width x height of dxtformat data to format (from dxt_upload_format); a malloc'ed block image of
 // dxt_upload_size bytes, or NULL when the encoder fails.
 GLvoid *dxt_transcode(GLenum dxtformat, GLenum format, GLsizei width, GLsizei height, const GLvoid *data);
+// Decodes width x height of dxtformat data; a malloc'ed RGBA image (red in the low byte) of width x height texels.
+GLvoid *dxt_decode(GLenum dxtformat, GLsizei width, GLsizei height, const GLvoid *data);
+// Encodes a width x height RGBA image to format (dxtformat itself, or the ASTC or ETC2 format dxt_upload_format gives
+// for it), padded to whole blocks with its edge texels; a malloc'ed block image of dxt_upload_size bytes, or NULL.
+GLvoid *dxt_encode(GLenum dxtformat, GLenum format, GLsizei width, GLsizei height, const GLvoid *rgba);
 
 #endif // _GL4ES_TEXTURE_TRANSCODE_H_

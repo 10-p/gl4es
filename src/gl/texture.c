@@ -1413,6 +1413,7 @@ void APIENTRY_GL4ES gl4es_glTexImage2D(GLenum target, GLint level, GLint interna
                 bound->adjustxy[1] = (float)height / nheight;
             }
             bound->compressed = 0;
+            dxt_levels_reset(bound);
             bound->valid = 1;
         }
 
