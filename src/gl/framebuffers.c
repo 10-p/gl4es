@@ -999,7 +999,9 @@ void APIENTRY_GL4ES gl4es_glRenderbufferStorage(GLenum target, GLenum internalfo
     if (internalformat == GL_DEPTH_STENCIL)
         internalformat = GL_DEPTH24_STENCIL8;
     // in that case, create first a STENCIL one then a DEPTH one....
-    if ((internalformat == GL_DEPTH24_STENCIL8 && (hardext.depthstencil==0 || ((hardext.vendor&VEND_IMGTEC)==VEND_IMGTEC)))) {
+    // (PowerVR's GLES 2 drivers get the split too; GLES 3 has packed depth-stencil in core, and its
+    // GL_DEPTH_STENCIL_ATTACHMENT needs one image with both, so a depth-only one leaves the framebuffer incomplete)
+    if ((internalformat == GL_DEPTH24_STENCIL8 && (hardext.depthstencil==0 || ((hardext.vendor&VEND_IMGTEC)==VEND_IMGTEC && hardext.esversion<3)))) {
         internalformat = (hardext.depth24)?GL_DEPTH_COMPONENT24:GL_DEPTH_COMPONENT16;
         // create a stencil buffer if needed
         if(!rend->secondarybuffer) {
