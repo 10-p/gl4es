@@ -1132,6 +1132,7 @@ void APIENTRY_GL4ES gl4es_glGenerateMipmap(GLenum target) {
     if(globals4es.automipmap != 3) {
         gles_glGenerateMipmap(rtarget);
         bound->mipmap_auto = 1;
+        tex_levels_generated(bound);
         /*if(bound->sampler.min_filer != bound->actual.min_filter)  // mainly for S3TC textures...
             gl4es_glTexParameteri(target, GL_TEXTURE_MIN_FILTER, bound->sampler.min_filer);*/
     }

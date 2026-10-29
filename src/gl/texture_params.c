@@ -238,9 +238,10 @@ int is_mipmap_needed(glsampler_t* sampler)
 GLenum get_texture_min_filter(gltexture_t* texture, glsampler_t* sampler)
 {
     GLenum ret = sampler->min_filter;
+    // (GL_TEXTURE_MAX_LEVEL 0 on GLES 2, which has no maximum level: level 0 alone is sampled, as in desktop GL.)
     if ((globals4es.automipmap==3) 
     || ((globals4es.automipmap==1) && (texture->mipmap_auto==0)) 
-    || (texture->compressed && (texture->mipmap_auto==0) && !texture->dxt_chain)) {
+    || (hardext.esversion<3 && texture->max_level==0 && texture->base_level<=0)) {
         switch (ret) {
             case GL_NEAREST_MIPMAP_NEAREST:
             case GL_NEAREST_MIPMAP_LINEAR:
@@ -305,15 +306,22 @@ void APIENTRY_GL4ES gl4es_glTexParameterfv(GLenum target, GLenum pname, const GL
         LOAD_GLES(glTexParameterfv);
         GLint param = params[0];
         switch (pname) {
+            // The levels sampled, base to max, as in desktop GL: the driver takes them on GLES 3; GLES 2 has
+            // neither, and gl4es emulates them (tex_max_level_set, the base level's in glTexImage2D).
             case GL_TEXTURE_MAX_LEVEL:
                 if (texture) {
                     texture->max_level = param;
-                    dxt_max_level_set(texture, target);
+                    if(hardext.esversion<3) {
+                        tex_max_level_set(texture, target);
+                        return;
+                    }
                 }
-                return;            // not on GLES
+                break;
             case GL_TEXTURE_BASE_LEVEL:
                 texture->base_level = param;
-                return;            // not on GLES
+                if(hardext.esversion<3)
+                    return;
+                break;
             case GL_TEXTURE_LOD_BIAS:
                 return;            // not on GLES
             case GL_GENERATE_MIPMAP:
@@ -415,7 +423,7 @@ void APIENTRY_GL4ES gl4es_glDeleteTextures(GLsizei n, const GLuint *textures) {
                 if (globals4es.texstream && tex->streamed)
                     FreeStreamed(tex->streamingID);
 #endif
-                dxt_levels_reset(tex);
+                tex_levels_reset(tex);
                 #if 1
                 kh_del(tex, list, k);
                 if (tex->data) free(tex->data);
@@ -934,15 +942,22 @@ void realize_textures(int drawing) {
         }
         // check, if drawing, if mipmap needs some special care...
         if(drawing) {
-            if((globals4es.automipmap==3) || ((globals4es.automipmap==1) && (tex->mipmap_auto==0)) || (tex->compressed && (tex->mipmap_auto==0) && !tex->dxt_chain))
+            if((globals4es.automipmap==3) || ((globals4es.automipmap==1) && (tex->mipmap_auto==0)) || (tex->compressed && (tex->mipmap_auto==0) && !tex_levels_whole(tex)))
                 tex->mipmap_need = 0;
             else
                 tex->mipmap_need = (is_mipmap_needed(&tex->sampler) && (hardext.esversion!=1) && !tex->npot)?1:0;
-            if(tex->mipmap_need && !tex->mipmap_done) {
+            // Mipmaps the app did not give are generated only where LIBGL_MIPMAP asks for it.
+            if(tex->mipmap_need && !tex->mipmap_done && globals4es.automipmap) {
                 if(!tex->mipmap_auto) {
                     // should check if glGenerateMipmap exist, and fall back to no mipmap if not
                     LOAD_GLES2_OR_OES(glGenerateMipmap);
-                    gles_glGenerateMipmap(GL_TEXTURE_2D);
+                    // On this unit, for the unit's target (a cube map's own), whatever unit the driver had active.
+                    if(glstate->gleshard->active!=i) {
+                        glstate->gleshard->active = i;
+                        gles_glActiveTexture(GL_TEXTURE0+i);
+                    }
+                    gles_glGenerateMipmap(target);
+                    tex_levels_generated(tex);
                 }
                 tex->mipmap_done = 1;
             }

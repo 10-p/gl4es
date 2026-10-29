@@ -50,7 +50,7 @@ static void free_texture(gltexture_t *tex)
         gles_glDeleteTextures(1, &tex->glname);
     if(tex->data)
         free(tex->data);
-    dxt_levels_reset(tex);
+    tex_levels_reset(tex);
     // renderbuffer linked to this texture will be freed by the free_renderbuffer function.
     free(tex);
 }

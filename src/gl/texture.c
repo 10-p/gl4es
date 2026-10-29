@@ -61,6 +61,120 @@ static int inline maxlevel(int w, int h) {
     return mlevel;
 }
 
+// The app's mip levels (texture.h, lv_*).
+int tex_level_face(GLenum target) {
+    if(target>=GL_TEXTURE_CUBE_MAP_POSITIVE_X && target<=GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)
+        return target-GL_TEXTURE_CUBE_MAP_POSITIVE_X;
+    return 0;
+}
+
+GLboolean tex_levels_whole(gltexture_t *tex) {
+    return tex->lv_faces && tex->lv_whole==(1<<tex->lv_faces)-1;
+}
+
+int tex_level_arrived(gltexture_t *tex, GLenum rtarget, GLint level) {
+    const int face = tex_level_face(rtarget);
+    if(!level) {
+        tex->lv_faces = (what_target(rtarget)==ENABLED_CUBE_MAP)?6:1;
+        tex->lv_run[face] = 0;
+    }
+    if(level>tex->lv_run[face])
+        return 0;   // after a gap: not part of the face's run
+    if(level==tex->lv_run[face])
+        ++tex->lv_run[face];
+    if(level!=tex->lv_run[face]-1)
+        return 0;   // a level above the last one: what follows from the last stays
+    free(tex->lv_last[face]);
+    tex->lv_last[face] = NULL;
+    tex->lv_whole &= ~(1<<face);
+    return 1;
+}
+
+void tex_face_whole(gltexture_t *tex, int face) {
+    free(tex->lv_last[face]);
+    tex->lv_last[face] = NULL;
+    tex->lv_whole |= 1<<face;
+    if(tex_levels_whole(tex))
+        tex->mipmap_done = 1;
+}
+
+void tex_level_keep(gltexture_t *tex, int face, const GLvoid *data, GLsizei size, GLenum format, GLenum type) {
+    free(tex->lv_last[face]);
+    tex->lv_last[face] = malloc(size);
+    memcpy(tex->lv_last[face], data, size);
+    tex->lv_format = format;
+    tex->lv_type = type;
+}
+
+// The levels below a face's last one, from its pixels (lv_last, as the driver took them), halved down to 1x1.
+static void tex_derive_levels(gltexture_t *tex, GLenum rtarget, int face) {
+    LOAD_GLES(glTexImage2D);
+    const GLenum format = tex->lv_format, type = tex->lv_type;
+    int level = tex->lv_run[face]-1;
+    GLsizei w = nlevel(tex->nwidth, level);
+    GLsizei h = nlevel(tex->nheight, level);
+    GLvoid *pixels = tex->lv_last[face];
+    tex->lv_last[face] = NULL;
+    int oldalign;
+    gl4es_glGetIntegerv(GL_UNPACK_ALIGNMENT, &oldalign);
+    if(oldalign!=1)
+        gl4es_glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    while(w>1 || h>1) {
+        GLvoid *half = pixels;
+        pixel_halfscale(pixels, &half, w, h, format, type);
+        if(half!=pixels)
+            free(pixels);
+        pixels = half;
+        w = nlevel(w, 1);
+        h = nlevel(h, 1);
+        ++level;
+        gles_glTexImage2D(rtarget, level, gl4es_es3internal(format, type), w, h, 0, format, type, pixels);
+    }
+    free(pixels);
+    if(oldalign!=1)
+        gl4es_glPixelStorei(GL_UNPACK_ALIGNMENT, oldalign);
+    tex_face_whole(tex, face);
+}
+
+void tex_max_level_set(gltexture_t *tex, GLenum target) {
+    if(tex->max_level<1)
+        return;
+    int pending = 0;
+    for(int f=0; f<tex->lv_faces; f++)
+        if(tex->lv_last[f] && tex->max_level<tex->lv_run[f])
+            pending = 1;
+    if(!pending)
+        return;
+    FLUSH_BEGINEND;
+    realize_bound(glstate->texture.active, target);
+    for(int f=0; f<tex->lv_faces; f++)
+        if(tex->lv_last[f] && tex->max_level<tex->lv_run[f]) {
+            const GLenum rtarget = (tex->lv_faces==6)?GL_TEXTURE_CUBE_MAP_POSITIVE_X+f:map_tex_target(target);
+            if(tex->lv_format)
+                tex_derive_levels(tex, rtarget, f);
+            else
+                dxt_derive_levels(tex, rtarget, f);
+        }
+}
+
+void tex_levels_generated(gltexture_t *tex) {
+    for(int f=0; f<6; f++) {
+        free(tex->lv_last[f]);
+        tex->lv_last[f] = NULL;
+    }
+    tex->lv_whole = tex->lv_faces?(1<<tex->lv_faces)-1:0;
+}
+
+void tex_levels_reset(gltexture_t *tex) {
+    for(int f=0; f<6; f++) {
+        free(tex->lv_last[f]);
+        tex->lv_last[f] = NULL;
+        tex->lv_run[f] = 0;
+    }
+    tex->lv_faces = 0;
+    tex->lv_whole = 0;
+}
+
 static int is_fake_compressed_rgb(GLenum internalformat)
 {
     if(internalformat==GL_COMPRESSED_RGB) return 1;
@@ -1413,13 +1527,12 @@ void APIENTRY_GL4ES gl4es_glTexImage2D(GLenum target, GLint level, GLint interna
                 bound->adjustxy[1] = (float)height / nheight;
             }
             bound->compressed = 0;
-            dxt_levels_reset(bound);
             bound->valid = 1;
         }
 
         int callgeneratemipmap = 0;
         if (!(globals4es.texstream && bound->streamed)) {
-            if ((target!=GL_TEXTURE_RECTANGLE_ARB) && (globals4es.automipmap!=3) && (bound->mipmap_need || bound->mipmap_auto) && !(bound->npot && hardext.npot<2) && (bound->max_level==-1)) {
+            if ((target!=GL_TEXTURE_RECTANGLE_ARB) && (globals4es.automipmap!=3) && (bound->mipmap_auto || (bound->mipmap_need && globals4es.automipmap)) && !(bound->npot && hardext.npot<2) && (bound->max_level==-1)) {
                 if(hardext.esversion<2)
                     gles_glTexParameteri( rtarget, GL_GENERATE_MIPMAP, GL_TRUE );
                 else
@@ -1462,8 +1575,8 @@ void APIENTRY_GL4ES gl4es_glTexImage2D(GLenum target, GLint level, GLint interna
                                 format, type, pixels);
                 DBG(CheckGLError(1);)
             }
-            // check if base_level is set... and calculate lower level mipmap
-            if(bound->base_level == level && !(bound->max_level==level && level==0)) {
+            // check if base_level is set... and calculate lower level mipmap (GLES 2: GLES 3 takes the base level)
+            if(hardext.esversion<3 && bound->base_level == level && !(bound->max_level==level && level==0)) {
                 int leveln = level, nw = width, nh = height, nww=nwidth, nhh=nheight;
                 int pot = (nh==nhh && nw==nww);
                 void *ndata = pixels;
@@ -1491,7 +1604,10 @@ void APIENTRY_GL4ES gl4es_glTexImage2D(GLenum target, GLint level, GLint interna
             if(globals4es.automipmap==5 && !level)
                 bound->mipmap_done = 0;
             // check if max_level is set... and calculate higher level mipmap
-            if(((bound->max_level == level && (level || bound->mipmap_need)) || (callgeneratemipmap && level==0) || (globals4es.automipmap==5 && level && !bound->mipmap_done)) && !(bound->max_level==bound->base_level && bound->max_level==0)) {
+            // (GLES 2, which has no maximum level: the levels below it, down to 1x1, derived from it.)
+            int generated = 0;
+            if(((hardext.esversion<3 && bound->max_level == level && level) || (callgeneratemipmap && level==0) || (globals4es.automipmap==5 && level && !bound->mipmap_done)) && !(bound->max_level==bound->base_level && bound->max_level==0)) {
+                generated = 1;
                 if(globals4es.automipmap==5 && level==1)
                     bound->mipmap_done = 1;
                 int leveln = level, nw = nwidth, nh = nheight, nww=width, nhh=height;
@@ -1517,6 +1633,16 @@ void APIENTRY_GL4ES gl4es_glTexImage2D(GLenum target, GLint level, GLint interna
                 }
                 if (ndata!=pixels)
                     free(ndata);
+            }
+            // The app's levels (texture.h): this one ends the face's chain at 1x1, or the levels below it were just
+            // generated; else, on GLES 2 and above 1x1, it is kept for a GL_TEXTURE_MAX_LEVEL that comes after it.
+            if(tex_level_arrived(bound, rtarget, level)) {
+                const int face = tex_level_face(rtarget);
+                const int rowbytes = width*pixel_sizeof(format, type);
+                if(generated || level==maxlevel(bound->width, bound->height))
+                    tex_face_whole(bound, face);
+                else if(hardext.esversion<3 && level && pixels && nwidth==width && nheight==height && !(rowbytes%glstate->texture.unpack_align))
+                    tex_level_keep(bound, face, pixels, rowbytes*height, format, type);
             }
         /*if (bound && bound->mipmap_need && !bound->mipmap_auto && (globals4es.automipmap!=3))
             gles_glTexParameteri( rtarget, GL_GENERATE_MIPMAP, GL_FALSE );*/
@@ -1703,7 +1829,7 @@ void APIENTRY_GL4ES gl4es_glTexSubImage2D(GLenum target, GLint level, GLint xoff
     }
 
     int callgeneratemipmap = 0;
-    if ((target!=GL_TEXTURE_RECTANGLE_ARB) && (bound->mipmap_need || bound->mipmap_auto)) {
+    if ((target!=GL_TEXTURE_RECTANGLE_ARB) && (bound->mipmap_auto || (bound->mipmap_need && globals4es.automipmap))) {
         if(hardext.esversion<2) {
             //gles_glTexParameteri( rtarget, GL_GENERATE_MIPMAP, GL_TRUE );
         } else
@@ -1721,8 +1847,8 @@ void APIENTRY_GL4ES gl4es_glTexSubImage2D(GLenum target, GLint level, GLint xoff
         gles_glTexSubImage2D(rtarget, level, xoffset, yoffset,
                      width, height, format, type, pixels);
         DBG(CheckGLError(1);)
-        // check if base_level is set... and calculate lower level mipmap
-        if(bound->base_level == level && !(bound->max_level==level && level==0)) {
+        // check if base_level is set... and calculate lower level mipmap (GLES 2: GLES 3 takes the base level)
+        if(hardext.esversion<3 && bound->base_level == level && !(bound->max_level==level && level==0)) {
             int leveln = level, nw = width, nh = height, xx=xoffset, yy=yoffset;
             void *ndata = pixels;
             while(leveln) {
@@ -1746,7 +1872,7 @@ void APIENTRY_GL4ES gl4es_glTexSubImage2D(GLenum target, GLint level, GLint xoff
         }
         // check if max_level is set... and calculate higher level mipmap
         int genmipmap = 0;
-        if(((bound->max_level == level) && (level || bound->mipmap_need)))
+        if(hardext.esversion<3 && bound->max_level == level && level)
             genmipmap = 1;
         if(callgeneratemipmap && ((level==0) || (level==bound->max_level)))
             genmipmap = 1;
