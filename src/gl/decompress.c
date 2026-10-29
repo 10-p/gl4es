@@ -55,6 +55,17 @@ SOFTWARE.
 
 ---
 */
+// A 5- or 6-bit colour channel to 8 bits by bit replication.
+static uint8_t Expand5 (uint32_t v)
+{
+	return (uint8_t)((v << 3) | (v >> 2));
+}
+
+static uint8_t Expand6 (uint32_t v)
+{
+	return (uint8_t)((v << 2) | (v >> 4));
+}
+
 static uint32_t PackRGBA (uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
 	return r | (g << 8) | (b << 16) | (a << 24);
@@ -68,7 +79,7 @@ static void DecompressBlockDXT1Internal (const uint8_t* block,
 	int transparent0, int* simpleAlpha, int *complexAlpha,
 	const uint8_t* alphaValues, int fourColour)
 {
-	uint32_t temp, code;
+	uint32_t code;
 
 	uint16_t color0, color1;
 	uint8_t r0, g0, b0, r1, g1, b1;
@@ -78,19 +89,13 @@ static void DecompressBlockDXT1Internal (const uint8_t* block,
 	color0 = *(const uint16_t*)(block);
 	color1 = *(const uint16_t*)(block + 2);
 
-	temp = (color0 >> 11) * 255 + 16;
-	r0 = (uint8_t)((temp/32 + temp)/32);
-	temp = ((color0 & 0x07E0) >> 5) * 255 + 32;
-	g0 = (uint8_t)((temp/64 + temp)/64);
-	temp = (color0 & 0x001F) * 255 + 16;
-	b0 = (uint8_t)((temp/32 + temp)/32);
+	r0 = Expand5(color0 >> 11);
+	g0 = Expand6((color0 >> 5) & 0x3F);
+	b0 = Expand5(color0 & 0x1F);
 
-	temp = (color1 >> 11) * 255 + 16;
-	r1 = (uint8_t)((temp/32 + temp)/32);
-	temp = ((color1 & 0x07E0) >> 5) * 255 + 32;
-	g1 = (uint8_t)((temp/64 + temp)/64);
-	temp = (color1 & 0x001F) * 255 + 16;
-	b1 = (uint8_t)((temp/32 + temp)/32);
+	r1 = Expand5(color1 >> 11);
+	g1 = Expand6((color1 >> 5) & 0x3F);
+	b1 = Expand5(color1 & 0x1F);
 
 	code = *(const uint32_t*)(block + 4);
 
@@ -213,7 +218,7 @@ void DecompressBlockDXT5(uint32_t x, uint32_t y, uint32_t width,
 
 	int i, j;
 
-	uint32_t temp, code;
+	uint32_t code;
 
 	alpha0 = *(blockStorage);
 	alpha1 = *(blockStorage + 1);
@@ -225,19 +230,13 @@ void DecompressBlockDXT5(uint32_t x, uint32_t y, uint32_t width,
 	color0 = *(const uint16_t*)(blockStorage + 8);
 	color1 = *(const uint16_t*)(blockStorage + 10);	
 
-	temp = (color0 >> 11) * 255 + 16;
-	r0 = (uint8_t)((temp/32 + temp)/32);
-	temp = ((color0 & 0x07E0) >> 5) * 255 + 32;
-	g0 = (uint8_t)((temp/64 + temp)/64);
-	temp = (color0 & 0x001F) * 255 + 16;
-	b0 = (uint8_t)((temp/32 + temp)/32);
+	r0 = Expand5(color0 >> 11);
+	g0 = Expand6((color0 >> 5) & 0x3F);
+	b0 = Expand5(color0 & 0x1F);
 
-	temp = (color1 >> 11) * 255 + 16;
-	r1 = (uint8_t)((temp/32 + temp)/32);
-	temp = ((color1 & 0x07E0) >> 5) * 255 + 32;
-	g1 = (uint8_t)((temp/64 + temp)/64);
-	temp = (color1 & 0x001F) * 255 + 16;
-	b1 = (uint8_t)((temp/32 + temp)/32);
+	r1 = Expand5(color1 >> 11);
+	g1 = Expand6((color1 >> 5) & 0x3F);
+	b1 = Expand5(color1 & 0x1F);
 
 	code = *(const uint32_t*)(blockStorage + 12);
 
