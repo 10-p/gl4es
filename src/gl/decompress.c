@@ -60,11 +60,13 @@ static uint32_t PackRGBA (uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 	return r | (g << 8) | (b << 16) | (a << 24);
 }
 
+// fourColour: the colour block of a DXT3 image, which the S3TC spec decodes as if color0 > color1 whatever the
+// two values; a DXT1 block takes the three-colour mode when color0 <= color1.
 static void DecompressBlockDXT1Internal (const uint8_t* block,
 	uint32_t* output,
 	uint32_t outputStride,
 	int transparent0, int* simpleAlpha, int *complexAlpha,
-	const uint8_t* alphaValues)
+	const uint8_t* alphaValues, int fourColour)
 {
 	uint32_t temp, code;
 
@@ -92,7 +94,7 @@ static void DecompressBlockDXT1Internal (const uint8_t* block,
 
 	code = *(const uint32_t*)(block + 4);
 
-	if (color0 > color1) {
+	if (fourColour || color0 > color1) {
 		for (j = 0; j < 4; ++j) {
 			for (i = 0; i < 4; ++i) {
 				uint32_t finalColor, positionCode;
@@ -184,7 +186,7 @@ void DecompressBlockDXT1(uint32_t x, uint32_t y, uint32_t width,
 	};
 
 	DecompressBlockDXT1Internal (blockStorage,
-		image + x + (y * width), width, transparent0, simpleAlpha, complexAlpha, const_alpha);
+		image + x + (y * width), width, transparent0, simpleAlpha, complexAlpha, const_alpha, 0);
 }
 
 /*
@@ -329,7 +331,7 @@ void DecompressBlockDXT3(uint32_t x, uint32_t y, uint32_t width,
 	}
 
 	DecompressBlockDXT1Internal (blockStorage,
-		image + x + (y * width), width, transparent0, simpleAlpha, complexAlpha, alphaValues);
+		image + x + (y * width), width, transparent0, simpleAlpha, complexAlpha, alphaValues, 1);
 }
 
 // Texture DXT1 / DXT5 compression
