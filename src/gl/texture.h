@@ -154,9 +154,13 @@ typedef struct {
     GLuint renderstencil;
     int     trace;  // internal use for debug
     GLvoid *data;	// in case we want to keep a copy of it (it that case, always RGBA/GL_UNSIGNED_BYTE
-    int dxt_levels;         // DXTn the driver holds compressed: the app gave levels 0..dxt_levels-1
-    GLboolean dxt_chain;    // and the driver's levels run down to 1x1 (the app's, then those derived from its last)
-    GLvoid *dxt_last;       // the DXTn blocks of the app's last level above 1x1, until the levels below are derived
+    // The app's mip levels, per face (face 0 of a 2D texture, faces 0-5 of a cube map; texture.c, tex_level_*):
+    int lv_faces;           // the faces the texture has (1 or 6), once a level 0 arrived
+    int lv_run[6];          // the app gave the face levels 0..lv_run-1, without a gap
+    int lv_whole;           // one bit per face whose driver levels run down to 1x1 (the app's, then those derived from its last)
+    GLvoid *lv_last[6];     // GLES 2: a face's last level above 1x1, until GL_TEXTURE_MAX_LEVEL says the levels below it
+                            // are to be derived: DXTn blocks as the app gave them, else pixels as the driver took them
+    GLenum lv_format, lv_type;  // the pixels' format and type
     glsampler_t sampler;    // internal sampler if not superseded by glBindSampler
     glsampler_t actual;     // actual sampler
     float fbtex_ratio; // Lower rendering resolution
@@ -249,11 +253,26 @@ int minmag_npot(GLenum mag);
 GLenum minmag_forcenpot(GLenum filt);
 GLenum minmag_float(GLenum filt);
 GLboolean isDXTc(GLenum format);
-// GL_TEXTURE_MAX_LEVEL was set on tex, the active unit's texture for target: where the app's DXTn levels reach that
-// level, the driver's levels below the app's last one are derived down to 1x1 (texture_compressed.c).
-void dxt_max_level_set(gltexture_t *tex, GLenum target);
-// The texture no longer holds the app's DXTn levels (deleted, or level 0 specified another way): their tracking ends.
-void dxt_levels_reset(gltexture_t *tex);
+// The app's mip levels (texture.c), per face. GLES 2 has no GL_TEXTURE_MAX_LEVEL: where a face's levels run from 0
+// without a gap down to the level it names, gl4es derives the levels below it down to 1x1, at that level's upload or,
+// from a copy of it, when the maximum level comes later. A face whose levels reach 1x1 is whole.
+int tex_level_face(GLenum target);
+GLboolean tex_levels_whole(gltexture_t *tex);
+// Level `level` of the face of rtarget reached the driver (level 0 starts the face over): 1 when it is the face's
+// last level so far.
+int tex_level_arrived(gltexture_t *tex, GLenum rtarget, GLint level);
+void tex_face_whole(gltexture_t *tex, int face);
+// The face's last level, kept until GL_TEXTURE_MAX_LEVEL says whether the levels below it are the app's to give.
+void tex_level_keep(gltexture_t *tex, int face, const GLvoid *data, GLsizei size, GLenum format, GLenum type);
+// GL_TEXTURE_MAX_LEVEL was set on tex, the active unit's texture for target, on GLES 2: the faces whose levels reach
+// it get the levels below their last one, down to 1x1.
+void tex_max_level_set(gltexture_t *tex, GLenum target);
+// gl4es made the texture's levels itself (glGenerateMipmap): the app's are no longer tracked.
+void tex_levels_generated(gltexture_t *tex);
+// The texture no longer holds the app's levels (deleted): their tracking ends.
+void tex_levels_reset(gltexture_t *tex);
+// texture_compressed.c: the DXTn levels below a face's last one, from its blocks (lv_last), in the driver's format.
+void dxt_derive_levels(gltexture_t *bound, GLenum rtarget, int face);
 
 void realize_bound(int TMU, GLenum target);
 void realize_1texture(GLenum target, int TMU, gltexture_t* tex, glsampler_t* sampler);

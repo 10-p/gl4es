@@ -81,10 +81,12 @@ static unsigned short rgb565(const unsigned char *c) {
     return ((c[0]*31+127)/255)<<11 | ((c[1]*63+127)/255)<<5 | (c[2]*31+127)/255;
 }
 
+// A 565 colour expanded to 8 bits a channel by bit replication, as the DXT decoder expands it.
 static void rgb888(unsigned short c, int *out) {
-    out[0] = ((c>>11)&31)*255/31;
-    out[1] = ((c>>5)&63)*255/63;
-    out[2] = (c&31)*255/31;
+    const int r = (c>>11)&31, g = (c>>5)&63, b = c&31;
+    out[0] = (r<<3)|(r>>2);
+    out[1] = (g<<2)|(g>>4);
+    out[2] = (b<<3)|(b>>2);
 }
 
 // A DXT1 block with transparent texels: three-colour mode (colour0 <= colour1), index 3 transparent, the opaque
