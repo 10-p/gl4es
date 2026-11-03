@@ -180,10 +180,13 @@ void GoUniformfv(program_t *glprogram, GLint location, int size, int count, cons
         return;
     }
     m = kh_value(glprogram->uniform, k);
-    if(size != n_uniform(m->type) || !is_uniform_float(m->type) || count>m->size) {
+    if(size != n_uniform(m->type) || !is_uniform_float(m->type) || (count>1 && !m->array)) {
         errorShim(GL_INVALID_OPERATION);
         return;
     }
+    // values past the array's last active element are ignored, as GL ignores them
+    if(count>m->size)
+        count = m->size;
     // ok, check the value in the cache
     int rsize = sizeof(GLfloat)*size*count;
     if (memcmp((char*)glprogram->cache.cache + m->cache_offs, value, rsize)==0) {
@@ -227,10 +230,13 @@ void GoUniformiv(program_t *glprogram, GLint location, int size, int count, cons
         return;
     }
     m = kh_value(glprogram->uniform, k);
-    if(size != n_uniform(m->type) || !is_uniform_int(m->type)  || count>m->size) {
+    if(size != n_uniform(m->type) || !is_uniform_int(m->type) || (count>1 && !m->array)) {
         errorShim(GL_INVALID_OPERATION);
         return;
     }
+    // values past the array's last active element are ignored, as GL ignores them
+    if(count>m->size)
+        count = m->size;
     // ok, check the value in the cache
     int rsize = sizeof(GLint)*size*count;
     if (memcmp((char*)glprogram->cache.cache + m->cache_offs, value, rsize)==0) {
@@ -539,10 +545,13 @@ void GoUniformMatrix2fv(program_t *glprogram, GLint location, GLsizei count, GLb
         return;
     }
     m = kh_value(glprogram->uniform, k);
-    if(m->type!=GL_FLOAT_MAT2  || count>m->size) {
+    if(m->type!=GL_FLOAT_MAT2 || (count>1 && !m->array)) {
         errorShim(GL_INVALID_OPERATION);
         return;
     }
+    // values past the array's last active element are ignored, as GL ignores them
+    if(count>m->size)
+        count = m->size;
     // transpose if needed
     GLfloat *v = (GLfloat*)value;
     GLfloat tmp[4];
@@ -605,10 +614,13 @@ void GoUniformMatrix3fv(program_t *glprogram, GLint location, GLsizei count, GLb
         return;
     }
     m = kh_value(glprogram->uniform, k);
-    if(m->type!=GL_FLOAT_MAT3  || count>m->size) {
+    if(m->type!=GL_FLOAT_MAT3 || (count>1 && !m->array)) {
         errorShim(GL_INVALID_OPERATION);
         return;
     }
+    // values past the array's last active element are ignored, as GL ignores them
+    if(count>m->size)
+        count = m->size;
     // transpose if needed
     GLfloat *v = (GLfloat*)value;
     GLfloat tmp[9];
@@ -669,10 +681,13 @@ void GoUniformMatrix4fv(program_t *glprogram, GLint location, GLsizei count, GLb
         return;
     }
     m = kh_value(glprogram->uniform, k);
-    if(m->type!=GL_FLOAT_MAT4  || count>m->size) {
+    if(m->type!=GL_FLOAT_MAT4 || (count>1 && !m->array)) {
         errorShim(GL_INVALID_OPERATION);
         return;
     }
+    // values past the array's last active element are ignored, as GL ignores them
+    if(count>m->size)
+        count = m->size;
     // transpose if needed
     GLfloat *v = (GLfloat*)value;
     GLfloat tmp[16];

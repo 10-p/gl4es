@@ -107,6 +107,7 @@ typedef struct {
     GLuint          id;     // glsl id of the uniform
     GLenum          type;   // type of the uniform (GL_VERTEX or GL_FRAGMENT)
     GLint           size;
+    int             array;  // an element of a uniform declared as an array
     char*           name; // original source of the uniform
     int             builtin;
     uintptr_t       cache_offs;
