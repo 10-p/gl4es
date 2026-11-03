@@ -466,8 +466,8 @@ GLint APIENTRY_GL4ES gl4es_glGetUniformLocation(GLuint program, const GLchar *na
         kh_foreach_value(glprogram->uniform, m,
             if(strlen(m->name)==l && strncmp(m->name, name, l)==0) {
                 res = m->id;
-                if(index>m->size) {
-                    res = -1;   // too big !
+                if(index>=m->size) {
+                    res = -1;   // past the array's last active element
                 } else
                     res += index;
                 break;
