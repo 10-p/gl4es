@@ -6,6 +6,7 @@
 #include "glcase.h"
 #include "init.h"
 #include "loader.h"
+#include "logs.h"
 #include "matrix.h"
 #include "matvec.h"
 #include "program.h"
@@ -452,33 +453,64 @@ void APIENTRY_GL4ES fpe_program(int ispoint) {
     }
 }
 
+// What a variant adds to the application's program, for the log.
+static void fpe_VariantStates(char* buff, int size, fpe_state_t* state, int default_vertex)
+{
+    const char* items[4];
+    int n = 0;
+    if(default_vertex) items[n++] = "the fixed-function vertex state";
+    if(state->alphatest) items[n++] = "the alpha test";
+    if(state->plane) items[n++] = "the clip planes";
+    if(state->blend_enable) items[n++] = "blending";
+    buff[0] = '\0';
+    for(int i=0; i<n; ++i) {
+        if(i) strncat(buff, (i==n-1)?" and ":", ", size-strlen(buff)-1);
+        strncat(buff, items[i], size-strlen(buff)-1);
+    }
+    if(!n) strncpy(buff, "the fixed-function state", size-1);
+}
+
+// A variant that does not build is logged once; its cache entry then hands back the program itself, so the
+// program draws without the variant's states and the variant is not built again at every draw.
+static program_t* fpe_CustomShaderFailed(program_t* glprogram, fpe_fpe_t* fpe, int default_vertex, const char* what, GLuint object, int isprogram)
+{
+    char buff[1000] = "";
+    char states[128];
+    if(isprogram)
+        gl4es_glGetProgramInfoLog(object, sizeof(buff), NULL, buff);
+    else
+        gl4es_glGetShaderInfoLog(object, sizeof(buff), NULL, buff);
+    fpe_VariantStates(states, sizeof(states), &fpe->state, default_vertex);
+    LOGE("GLSL program %u draws without %s: gl4es' variant of it for this state does not build (%s): %s\n", glprogram->id, states, what, buff);
+    if(fpe->prog) gl4es_glDeleteProgram(fpe->prog);
+    if(fpe->vert) gl4es_glDeleteShader(fpe->vert);
+    if(fpe->frag) gl4es_glDeleteShader(fpe->frag);
+    fpe->prog = fpe->vert = fpe->frag = 0;
+    fpe->failed = 1;
+    return glprogram;
+}
+
 program_t* APIENTRY_GL4ES fpe_CustomShader(program_t* glprogram, fpe_state_t* state)
 {
     // state is not empty and glprogram already has some cache (it may be empty, but kh'thingy is initialized)
     // TODO: what if program is composed of more then 1 vertex or fragment shader?
     fpe_fpe_t *fpe = fpe_GetCache((fpe_cache_t*)glprogram->fpe_cache, state, 0);
+    if(fpe->failed)
+        return glprogram;
     if(fpe->glprogram==NULL) {
         GLint status;
         fpe->vert = gl4es_glCreateShader(GL_VERTEX_SHADER);
         gl4es_glShaderSource(fpe->vert, 1, fpe_CustomVertexShader(glprogram->last_vert->source, state, 0), NULL);
         gl4es_glCompileShader(fpe->vert);
         gl4es_glGetShaderiv(fpe->vert, GL_COMPILE_STATUS, &status);
-        if(status!=GL_TRUE) {
-            char buff[1000];
-            gl4es_glGetShaderInfoLog(fpe->vert, 1000, NULL, buff);
-            printf("LIBGL: FPE Custom Vertex shader compile failed: %s\n", buff);
-            return glprogram;   // fallback to non-customized custom program..
-        }
+        if(status!=GL_TRUE)
+            return fpe_CustomShaderFailed(glprogram, fpe, 0, "vertex shader", fpe->vert, 0);
         fpe->frag = gl4es_glCreateShader(GL_FRAGMENT_SHADER);
         gl4es_glShaderSource(fpe->frag, 1, fpe_CustomFragmentShader(glprogram->last_frag->source, state), NULL);
         gl4es_glCompileShader(fpe->frag);
         gl4es_glGetShaderiv(fpe->frag, GL_COMPILE_STATUS, &status);
-        if(status!=GL_TRUE) {
-            char buff[1000];
-            gl4es_glGetShaderInfoLog(fpe->frag, 1000, NULL, buff);
-            printf("LIBGL: FPE Custom Fragment shader compile failed: %s\n", buff);
-            return glprogram;   // fallback to non-customized custom program..
-        }
+        if(status!=GL_TRUE)
+            return fpe_CustomShaderFailed(glprogram, fpe, 0, "fragment shader", fpe->frag, 0);
         fpe->prog = gl4es_glCreateProgram();
         gl4es_glAttachShader(fpe->prog, fpe->vert);
         gl4es_glAttachShader(fpe->prog, fpe->frag);
@@ -492,12 +524,8 @@ program_t* APIENTRY_GL4ES fpe_CustomShader(program_t* glprogram, fpe_state_t* st
         }
         gl4es_glLinkProgram(fpe->prog);
         gl4es_glGetProgramiv(fpe->prog, GL_LINK_STATUS, &status);
-        if(status!=GL_TRUE) {
-            char buff[1000];
-            gl4es_glGetProgramInfoLog(fpe->prog, 1000, NULL, buff);
-            printf("LIBGL: FPE Custom Program link failed: %s\n", buff);
-            return glprogram;   // fallback to non-customized custom program..
-        }
+        if(status!=GL_TRUE)
+            return fpe_CustomShaderFailed(glprogram, fpe, 0, "link", fpe->prog, 1);
         // now find the program
         khint_t k_program;
         {
@@ -534,28 +562,22 @@ program_t* APIENTRY_GL4ES fpe_CustomShader_DefaultVertex(program_t* glprogram, f
     // state is not empty and glprogram already has some cache (it may be empty, but kh'thingy is initialized)
     // TODO: what if program is composed of more then 1 vertex or fragment shader?
     fpe_fpe_t *fpe = fpe_GetCache((fpe_cache_t*)glprogram->fpe_cache, state_vertex, 0);
+    if(fpe->failed)
+        return glprogram;
     if(fpe->glprogram==NULL) {
         GLint status;
         fpe->vert = gl4es_glCreateShader(GL_VERTEX_SHADER);
         gl4es_glShaderSource(fpe->vert, 1, fpe_VertexShader(glprogram->default_need, state_vertex), NULL);
         gl4es_glCompileShader(fpe->vert);
         gl4es_glGetShaderiv(fpe->vert, GL_COMPILE_STATUS, &status);
-        if(status!=GL_TRUE) {
-            char buff[1000];
-            gl4es_glGetShaderInfoLog(fpe->vert, 1000, NULL, buff);
-            printf("LIBGL: FPE Default Vertex shader compile failed: %s\n", buff);
-            return glprogram;   // fallback to non-customized custom program..
-        }
+        if(status!=GL_TRUE)
+            return fpe_CustomShaderFailed(glprogram, fpe, 1, "default vertex shader", fpe->vert, 0);
         fpe->frag = gl4es_glCreateShader(GL_FRAGMENT_SHADER);
         gl4es_glShaderSource(fpe->frag, 1, fpe_CustomFragmentShader(glprogram->last_frag->source, state_vertex), NULL);
         gl4es_glCompileShader(fpe->frag);
         gl4es_glGetShaderiv(fpe->frag, GL_COMPILE_STATUS, &status);
-        if(status!=GL_TRUE) {
-            char buff[1000];
-            gl4es_glGetShaderInfoLog(fpe->frag, 1000, NULL, buff);
-            printf("LIBGL: FPE Custom Fragment shader compile failed: %s\n", buff);
-            return glprogram;   // fallback to non-customized custom program..
-        }
+        if(status!=GL_TRUE)
+            return fpe_CustomShaderFailed(glprogram, fpe, 1, "fragment shader", fpe->frag, 0);
         fpe->prog = gl4es_glCreateProgram();
         gl4es_glAttachShader(fpe->prog, fpe->vert);
         gl4es_glAttachShader(fpe->prog, fpe->frag);
@@ -569,12 +591,8 @@ program_t* APIENTRY_GL4ES fpe_CustomShader_DefaultVertex(program_t* glprogram, f
         }
         gl4es_glLinkProgram(fpe->prog);
         gl4es_glGetProgramiv(fpe->prog, GL_LINK_STATUS, &status);
-        if(status!=GL_TRUE) {
-            char buff[1000];
-            gl4es_glGetProgramInfoLog(fpe->prog, 1000, NULL, buff);
-            printf("LIBGL: FPE Custom Program with Default Vertex link failed: %s\n", buff);
-            return glprogram;   // fallback to non-customized custom program..
-        }
+        if(status!=GL_TRUE)
+            return fpe_CustomShaderFailed(glprogram, fpe, 1, "link", fpe->prog, 1);
         // now find the program
         khint_t k_program;
         {
