@@ -1753,21 +1753,27 @@ const char* const* fpe_CustomFragmentShader(const char* initial, fpe_state_t* st
     int alpha_func = state->alphafunc;
     int shaderblend = state->blend_enable;
     char buff[1024];
-    int headline = gl4es_getline_for(initial, "main");
-    if(headline) --headline;
 
     strcpy(shad, "");
-    if(shaderblend) {
-        ShadAppend("#extension GL_ARM_shader_framebuffer_fetch : enable\n");
-    }
     ShadAppend(initial);
 
-    // add some varying
+    int is_fragcolor = (strstr(shad, "gl_FragColor")!=NULL)?1:0;
+    if(alpha_test || planes || shaderblend) {
+        // wrap real main...
+        shad = gl4es_inplace_replace(shad, &shad_cap, "main", "_gl4es_main");
+        if(is_fragcolor)
+            shad = gl4es_inplace_replace(shad, &shad_cap, "gl_FragColor", "_gl4es_FragColor");
+    }
+    // gl4es' declarations go ahead of the program's own text (which may use _gl4es_FragColor in any function), after
+    // its #version line: whatever precedes main, they stay at global scope and outside any preprocessor block
+    char decl[1024] = "";
+    if(shaderblend)
+        strcat(decl, "#extension GL_ARM_shader_framebuffer_fetch : enable\n");
     if(planes) {
         for (int i=0; i<hardext.maxplanes; i++) {
             if((planes>>i)&1) {
                 sprintf(buff, "varying mediump float clippedvertex_%d;\n", i);
-                ShadAppend(buff);
+                strcat(decl, buff);
             }
         }
     }
@@ -1777,18 +1783,20 @@ const char* const* fpe_CustomFragmentShader(const char* initial, fpe_state_t* st
      || (state->blendsrcalpha>=FPE_BLEND_CONSTANT_COLOR && state->blendsrcalpha<=FPE_BLEND_ONE_MINUS_CONSTANT_ALPHA)
      || (state->blenddstalpha>=FPE_BLEND_CONSTANT_COLOR && state->blenddstalpha<=FPE_BLEND_ONE_MINUS_CONSTANT_ALPHA)
     )) {
-        sprintf(buff, "uniform mediump vec4 _gl4es_BlendColor;\n");
-        ShadAppend(buff);
+        strcat(decl, "uniform mediump vec4 _gl4es_BlendColor;\n");
     }
-    int is_fragcolor = (strstr(shad, "gl_FragColor")!=NULL)?1:0;
-    if(alpha_test || planes || shaderblend) {
-        // wrap real main...
-        shad = gl4es_inplace_replace(shad, &shad_cap, "main", "_gl4es_main");
-        if(is_fragcolor) {
-            int l_main = gl4es_getline_for(shad, gl4es_prev_str(shad, strstr(shad, "_gl4es_main"))) - 1;
-            shad = gl4es_inplace_insert(gl4es_getline(shad, l_main), "lowp vec4 _gl4es_FragColor;\n", shad, &shad_cap);
-            shad = gl4es_inplace_replace(shad, &shad_cap, "gl_FragColor", "_gl4es_FragColor");
-        }
+    if((alpha_test || planes || shaderblend) && is_fragcolor)
+        strcat(decl, "lowp vec4 _gl4es_FragColor;\n");
+    if(alpha_test && alpha_func>FPE_NEVER)
+        strcat(decl, "uniform mediump float _gl4es_AlphaRef;\n");   // ahead of the shader's default precision
+    if(decl[0]) {
+        char* p = strstr(shad, "#version");
+        if(p) {
+            p = gl4es_next_line(p);
+            if(*p) ++p;
+        } else
+            p = shad;
+        shad = gl4es_inplace_insert(p, decl, shad, &shad_cap);
     }
     if(strstr(shad, "_gl4es_main")) {
         ShadAppend("void main() {\n");
@@ -1810,10 +1818,6 @@ const char* const* fpe_CustomFragmentShader(const char* initial, fpe_state_t* st
 
         //*** Alpha Test
         if(alpha_test) {
-            if(alpha_test && alpha_func>FPE_NEVER) {
-                shad = gl4es_inplace_insert(gl4es_getline(shad, headline), gl4es_alphaRefSource, shad, &shad_cap);
-                headline+=gl4es_countline(gl4es_alphaRefSource);
-            } 
             if(comments) {
                 sprintf(buff, "// Alpha Test, fct=%X\n", alpha_func);
                 ShadAppend(buff);
