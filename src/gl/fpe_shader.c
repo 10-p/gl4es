@@ -366,8 +366,9 @@ const char* const* fpe_VertexShader(shaderconv_need_t* need, fpe_state_t *state)
     // textures coordinates
     for (int i=0; i<hardext.maxtex; i++) {
         int t = state->texture[i].textype;
+        // a program's gl_TexCoord[i] is the full vec4, whatever the unit's target: written as for a 2D unit
         if(need)
-            t = (need->need_texs&(1<<i))?1:0;
+            t = (need->need_texs&(1<<i))?FPE_TEX_2D:0;
         if(t) {
             sprintf(buff, "varying highp %s _gl4es_TexCoord_%d;\n", texvecsize[t-1], i);
             ShadAppend(buff);
@@ -377,7 +378,7 @@ const char* const* fpe_VertexShader(shaderconv_need_t* need, fpe_state_t *state)
                 ShadAppend(buff);
                 headers++;
             }
-            if(fpe_reflectcube(state, i) || fpe_reflect2d(state, i)) {
+            if(!need && (fpe_reflectcube(state, i) || fpe_reflect2d(state, i))) {
                 sprintf(buff, "varying highp vec3 _gl4es_ReflEye_%d;\nvarying highp vec3 _gl4es_ReflNrm_%d;\n", i, i);
                 ShadAppend(buff);
                 headers+=2;
@@ -624,10 +625,8 @@ const char* const* fpe_VertexShader(shaderconv_need_t* need, fpe_state_t *state)
         ShadAppend("vec4 tmp_tex;\n");
     for (int i=0; i<hardext.maxtex; i++) {
         int t = state->texture[i].textype;
-        if(need && (need->need_texs&(1<<i)) && t==0)
-            t = 1;
-        if(need && !(need->need_texs&(1<<i)))
-            t = 0;
+        if(need)
+            t = (need->need_texs&(1<<i))?FPE_TEX_2D:0;
         int mat = state->texture[i].texmat;
         int adjust = state->texture[i].texadjust;
         int tg[4];
@@ -654,7 +653,8 @@ const char* const* fpe_VertexShader(shaderconv_need_t* need, fpe_state_t *state)
                 }
                 sprintf(texcoord, "tmp_tcoor");
                 ShadAppend("tmp_tcoor=vec4(0., 0., 0., 1.);\n");
-                if(mat) {
+                // a program's gl_TexCoord[i] has all four coordinates, generated or the vertex's
+                if(mat || need) {
                     ntc = 4;
                 }
                 for (int j=0; j<ntc; j++) {
@@ -723,7 +723,7 @@ const char* const* fpe_VertexShader(shaderconv_need_t* need, fpe_state_t *state)
                 sprintf(buff, "_gl4es_TexCoord_%d = %s.%s;\n", i, text_tmp, texxyzsize[t-1]);
             }
             ShadAppend(buff);
-            if(fpe_reflectcube(state, i) || fpe_reflect2d(state, i)) {
+            if(!need && (fpe_reflectcube(state, i) || fpe_reflect2d(state, i))) {
                 // pass eye-space position + normal so the reflection is computed per-fragment
                 sprintf(buff, "_gl4es_ReflEye_%d = vertex.xyz;\n_gl4es_ReflNrm_%d = normal;\n", i, i);
                 ShadAppend(buff);
