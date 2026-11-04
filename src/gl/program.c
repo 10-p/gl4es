@@ -466,8 +466,8 @@ GLint APIENTRY_GL4ES gl4es_glGetUniformLocation(GLuint program, const GLchar *na
         kh_foreach_value(glprogram->uniform, m,
             if(strlen(m->name)==l && strncmp(m->name, name, l)==0) {
                 res = m->id;
-                if(index>m->size) {
-                    res = -1;   // too big !
+                if(index>=m->size) {
+                    res = -1;   // past the array's last active element
                 } else
                     res += index;
                 break;
@@ -555,8 +555,12 @@ static void fill_program(program_t *glprogram)
         DBG(e2=gles_glGetError();)
         DBG(if(e2==GL_NO_ERROR))
         {
-            // remove any ending "[]" that could be present
-            if(name[strlen(name)-1]==']' && strrchr(name, '[')) (*strrchr(name, '['))='\0';
+            // remove any ending "[]" that could be present (an array's name ends with "[0]")
+            int array = (size>1);
+            if(name[strlen(name)-1]==']' && strrchr(name, '[')) {
+                (*strrchr(name, '['))='\0';
+                array = 1;
+            }
             GLint id = gles_glGetUniformLocation(glprogram->id, name);
             if(id!=-1) {
                 for (int j = 0; j<size; j++) {
@@ -571,6 +575,7 @@ static void fill_program(program_t *glprogram)
                     gluniform->id = id;
                     gluniform->internal_id = i;
                     gluniform->size = size-j;
+                    gluniform->array = array;
                     gluniform->type = type;
                     gluniform->cache_offs = uniform_cache+j*uniformsize(type);
                     gluniform->cache_size = uniformsize(type)*(size-j);

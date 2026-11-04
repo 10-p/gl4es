@@ -180,10 +180,13 @@ void GoUniformfv(program_t *glprogram, GLint location, int size, int count, cons
         return;
     }
     m = kh_value(glprogram->uniform, k);
-    if(size != n_uniform(m->type) || !is_uniform_float(m->type) || count>m->size) {
+    if(size != n_uniform(m->type) || !is_uniform_float(m->type) || (count>1 && !m->array)) {
         errorShim(GL_INVALID_OPERATION);
         return;
     }
+    // values past the array's last active element are ignored, as GL ignores them
+    if(count>m->size)
+        count = m->size;
     // ok, check the value in the cache
     int rsize = sizeof(GLfloat)*size*count;
     if (memcmp((char*)glprogram->cache.cache + m->cache_offs, value, rsize)==0) {
@@ -227,10 +230,13 @@ void GoUniformiv(program_t *glprogram, GLint location, int size, int count, cons
         return;
     }
     m = kh_value(glprogram->uniform, k);
-    if(size != n_uniform(m->type) || !is_uniform_int(m->type)  || count>m->size) {
+    if(size != n_uniform(m->type) || !is_uniform_int(m->type) || (count>1 && !m->array)) {
         errorShim(GL_INVALID_OPERATION);
         return;
     }
+    // values past the array's last active element are ignored, as GL ignores them
+    if(count>m->size)
+        count = m->size;
     // ok, check the value in the cache
     int rsize = sizeof(GLint)*size*count;
     if (memcmp((char*)glprogram->cache.cache + m->cache_offs, value, rsize)==0) {
@@ -539,15 +545,19 @@ void GoUniformMatrix2fv(program_t *glprogram, GLint location, GLsizei count, GLb
         return;
     }
     m = kh_value(glprogram->uniform, k);
-    if(m->type!=GL_FLOAT_MAT2  || count>m->size) {
+    if(m->type!=GL_FLOAT_MAT2 || (count>1 && !m->array)) {
         errorShim(GL_INVALID_OPERATION);
         return;
     }
+    // values past the array's last active element are ignored, as GL ignores them
+    if(count>m->size)
+        count = m->size;
     // transpose if needed
     GLfloat *v = (GLfloat*)value;
     GLfloat tmp[4];
     if(transpose) {
-        v = tmp;
+        // one matrix on the stack, an array in a buffer of its size
+        v = (count>1)?(GLfloat*)malloc(count*4*sizeof(GLfloat)):tmp;
         for (int n=0; n<count; n++)
             for (int i=0; i<2; i++)
                 for (int j=0; j<2; j++)
@@ -557,6 +567,7 @@ void GoUniformMatrix2fv(program_t *glprogram, GLint location, GLsizei count, GLb
     // ok, check the value in the cache
     int rsize = sizeof(GLfloat)*2*2*count;
     if (memcmp((char*)glprogram->cache.cache + m->cache_offs, v, rsize)==0) {
+        if(v!=value && v!=tmp) free(v);
         noerrorShim();
         return; // nothing to do, same value already there
     }
@@ -568,6 +579,7 @@ void GoUniformMatrix2fv(program_t *glprogram, GLint location, GLsizei count, GLb
         errorGL();
     } else
         errorShim(GL_INVALID_OPERATION);    // no GLSL hardware
+    if(v!=value && v!=tmp) free(v);
 }
 
 void APIENTRY_GL4ES gl4es_glUniformMatrix3fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value) {
@@ -605,15 +617,19 @@ void GoUniformMatrix3fv(program_t *glprogram, GLint location, GLsizei count, GLb
         return;
     }
     m = kh_value(glprogram->uniform, k);
-    if(m->type!=GL_FLOAT_MAT3  || count>m->size) {
+    if(m->type!=GL_FLOAT_MAT3 || (count>1 && !m->array)) {
         errorShim(GL_INVALID_OPERATION);
         return;
     }
+    // values past the array's last active element are ignored, as GL ignores them
+    if(count>m->size)
+        count = m->size;
     // transpose if needed
     GLfloat *v = (GLfloat*)value;
     GLfloat tmp[9];
     if(transpose) {
-        v = tmp;
+        // one matrix on the stack, an array in a buffer of its size
+        v = (count>1)?(GLfloat*)malloc(count*9*sizeof(GLfloat)):tmp;
         for (int n=0; n<count; n++)
             for (int i=0; i<3; i++)
                 for (int j=0; j<3; j++)
@@ -623,6 +639,7 @@ void GoUniformMatrix3fv(program_t *glprogram, GLint location, GLsizei count, GLb
     // ok, check the value in the cache
     int rsize = sizeof(GLfloat)*3*3*count;
     if (memcmp((char*)glprogram->cache.cache + m->cache_offs, v, rsize)==0) {
+        if(v!=value && v!=tmp) free(v);
         noerrorShim();
         return; // nothing to do, same value already there
     }
@@ -634,6 +651,7 @@ void GoUniformMatrix3fv(program_t *glprogram, GLint location, GLsizei count, GLb
         errorGL();
     } else
         errorShim(GL_INVALID_OPERATION);    // no GLSL hardware
+    if(v!=value && v!=tmp) free(v);
 }
 void APIENTRY_GL4ES gl4es_glUniformMatrix4fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value) {
     DBG(printf("glUniformMatrix4fv(%d, %d, %d, %p) p=>(%f, %f, %f, %f, %f...)\n", location, count, transpose, value, value[0], value[1], value[2], value[3], value[4]);)
@@ -669,15 +687,19 @@ void GoUniformMatrix4fv(program_t *glprogram, GLint location, GLsizei count, GLb
         return;
     }
     m = kh_value(glprogram->uniform, k);
-    if(m->type!=GL_FLOAT_MAT4  || count>m->size) {
+    if(m->type!=GL_FLOAT_MAT4 || (count>1 && !m->array)) {
         errorShim(GL_INVALID_OPERATION);
         return;
     }
+    // values past the array's last active element are ignored, as GL ignores them
+    if(count>m->size)
+        count = m->size;
     // transpose if needed
     GLfloat *v = (GLfloat*)value;
     GLfloat tmp[16];
     if(transpose) {
-        v = tmp;
+        // one matrix on the stack, an array in a buffer of its size
+        v = (count>1)?(GLfloat*)malloc(count*16*sizeof(GLfloat)):tmp;
         for (int n=0; n<count; n++)
             matrix_transpose(value+n*4*4, v+n*4*4);
 
@@ -685,6 +707,7 @@ void GoUniformMatrix4fv(program_t *glprogram, GLint location, GLsizei count, GLb
     // ok, check the value in the cache
     int rsize = sizeof(GLfloat)*4*4*count;
     if (memcmp((char*)glprogram->cache.cache + m->cache_offs, v, rsize)==0) {
+        if(v!=value && v!=tmp) free(v);
         noerrorShim();
         return; // nothing to do, same value already there
     }
@@ -698,6 +721,7 @@ void GoUniformMatrix4fv(program_t *glprogram, GLint location, GLsizei count, GLb
         //printf("No GLES2 function\n");
         errorShim(GL_INVALID_OPERATION);    // no GLSL hardware
     }
+    if(v!=value && v!=tmp) free(v);
 }
 
 int GetUniformi(program_t *glprogram, GLint location)

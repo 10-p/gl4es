@@ -225,6 +225,7 @@ typedef struct fpe_fpe_s {
   GLuint  frag, vert, prog;   // shader info
   fpe_state_t state;          // state relevant to the current fpe program
   program_t *glprogram;
+  int     failed;             // a variant of a GLSL program that did not build: the program draws without it
 } fpe_fpe_t;
 
 #ifndef kh_fpecachelist_t
